@@ -4,7 +4,7 @@ import java.util.Scanner;
 public class MeowTheCat {
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
-        ArrayList<Task> lol = new ArrayList<>();
+        ArrayList<Task> tasks = new ArrayList<>();
 
         System.out.println("____________________________________________________________");
         System.out.println("Hello! I'm MeowTheCat");
@@ -14,22 +14,24 @@ public class MeowTheCat {
         while (true) {
             String line = sc.nextLine().trim();
             try {
-                if (line.equals("bye")) {
+                if (line.equalsIgnoreCase("bye")) {
                     printGoodbye();
                     break;
-                } else if (line.equals("list")) {
-                    printList(lol);
+                } else if (line.equalsIgnoreCase("list")) {
+                    printList(tasks);
                 } else if (line.toLowerCase().startsWith("mark ")) {
-                    handleMark(line, lol);
+                    handleMark(line, tasks);
                 } else if (line.toLowerCase().startsWith("unmark ")) {
-                    handleUnmark(line, lol);
+                    handleUnmark(line, tasks);
+                } else if (line.toLowerCase().startsWith("delete ")) {
+                    handleDelete(line, tasks);
                 } else if (line.toLowerCase().startsWith("todo")) {
-                    handleTodo(line, lol);
+                    handleTodo(line, tasks);
                 } else if (line.toLowerCase().startsWith("deadline")) {
-                    handleDeadline(line, lol);
+                    handleDeadline(line, tasks);
                 } else if (line.toLowerCase().startsWith("event")) {
-                    handleEvent(line, lol);
-                } else {
+                    handleEvent(line, tasks);
+                }  else {
                     throw new MeowException("MEOW!! MEOW is Confused!!");
                 }
             } catch (MeowException de) {
@@ -46,9 +48,24 @@ public class MeowTheCat {
         sc.close();
     }
 
+    private static void handleDelete(String line, ArrayList<Task> tasks) throws MeowException {
+        try {
+            int idx = Integer.parseInt(line.substring(7).trim()) - 1;
+            if (idx < 0 || idx >= tasks.size()) throw new MeowException("This number does not align with the tasks you have");
+            Task removed = tasks.remove(idx);
+            System.out.println("____________________________________________________________");
+            System.out.println("Meow has Noted. I've removed this task:");
+            System.out.println("  " + removed);
+            System.out.println("Now you have " + tasks.size() + " tasks in the list");
+            System.out.println("____________________________________________________________");
+        } catch (NumberFormatException e) {
+            throw new MeowException("Please provide a valid task number after 'delete'.");
+        }
+    }
+
     private static void handleTodo(String line, ArrayList<Task> tasks) throws MeowException {
         String rest = line.length() > 4 ? line.substring(4).trim() : "";
-        if (rest.isEmpty()) throw new MeowException("The description of a todo cannot be empty. MEOW!!");
+        if (rest.isEmpty()) throw new MeowException("The description of a todo cannot be empty.");
         Task t = Task.createToDo(rest);
         tasks.add(t);
         System.out.println("____________________________________________________________");
@@ -60,11 +77,11 @@ public class MeowTheCat {
 
     private static void handleDeadline(String line, ArrayList<Task> tasks) throws MeowException {
         int byIndex = indexOfIgnoreCase(line, "/by");
-        if (line.length() <= 8 || byIndex == -1) throw new MeowException("The deadline command requires a description and '/by <time>'. MEOW!!");
+        if (line.length() <= 8 || byIndex == -1) throw new MeowException("The deadline command requires a description and '/by <time>'.");
         String desc = line.substring(8, byIndex).trim();
         String by = line.substring(byIndex + 3).trim();
-        if (desc.isEmpty()) throw new MeowException("The description of a deadline cannot be empty. MEOW!!");
-        if (by.isEmpty()) throw new MeowException("A deadline must have a '/by' time. MEOW!! ");
+        if (desc.isEmpty()) throw new MeowException("The description of a deadline cannot be empty.");
+        if (by.isEmpty()) throw new MeowException("A deadline must have a '/by' time.");
         Task t = Task.createDeadline(desc, by);
         tasks.add(t);
         System.out.println("____________________________________________________________");
@@ -77,12 +94,12 @@ public class MeowTheCat {
     private static void handleEvent(String line, ArrayList<Task> tasks) throws MeowException {
         int fromIndex = indexOfIgnoreCase(line, "/from");
         int toIndex = indexOfIgnoreCase(line, "/to");
-        if (line.length() <= 5 || fromIndex == -1 || toIndex == -1) throw new MeowException("The event command requires '/from' and '/to'. MEOW!!");
+        if (line.length() <= 5 || fromIndex == -1 || toIndex == -1) throw new MeowException("The event command requires '/from' and '/to'.");
         String desc = line.substring(5, fromIndex).trim();
         String from = line.substring(fromIndex + 5, toIndex).trim();
         String to = line.substring(toIndex + 3).trim();
-        if (desc.isEmpty()) throw new MeowException("The description of an event cannot be empty. MEOW!!");
-        if (from.isEmpty() || to.isEmpty()) throw new MeowException("An event must have both '/from' and '/to' values. MEOW!!");
+        if (desc.isEmpty()) throw new MeowException("The description of an event cannot be empty.");
+        if (from.isEmpty() || to.isEmpty()) throw new MeowException("An event must have both '/from' and '/to' values.");
         Task t = Task.createEvent(desc, from, to);
         tasks.add(t);
         System.out.println("____________________________________________________________");
@@ -102,7 +119,7 @@ public class MeowTheCat {
             System.out.println("  " + tasks.get(idx));
             System.out.println("____________________________________________________________");
         } catch (NumberFormatException e) {
-            throw new MeowException("Please provide a valid task number after 'mark'. MEOW!!");
+            throw new MeowException("Please provide a valid task number after 'mark'.");
         }
     }
 
@@ -116,7 +133,7 @@ public class MeowTheCat {
             System.out.println("  " + tasks.get(idx));
             System.out.println("____________________________________________________________");
         } catch (NumberFormatException e) {
-            throw new MeowException("MEOW!! Please provide a valid task number after 'unmark'.");
+            throw new MeowException("Please provide a valid task number after 'unmark'.");
         }
     }
 
@@ -124,7 +141,6 @@ public class MeowTheCat {
         System.out.println("____________________________________________________________");
         if (tasks.isEmpty()) {
             System.out.println("Here are the tasks in your list:");
-            System.out.println("(no tasks yet)");
         } else {
             System.out.println("Here are the tasks in your list:");
             for (int i = 0; i < tasks.size(); i++) {
@@ -146,11 +162,14 @@ public class MeowTheCat {
     }
 }
 
+
 class MeowException extends Exception {
     public MeowException(String msg) { super(msg); }
 }
 
+
 class Task {
+
     private String kind;
     private String description;
     private boolean isDone;
