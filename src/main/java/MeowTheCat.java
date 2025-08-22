@@ -145,7 +145,6 @@ public class MeowTheCat {
             System.out.println("Here are the tasks in your list:");
             for (int i = 0; i < tasks.size(); i++) {
                 System.out.println((i + 1) + "." + tasks.get(i));
-
             }
         }
         System.out.println("____________________________________________________________");
@@ -168,29 +167,33 @@ class MeowException extends Exception {
 }
 
 
+enum TaskType {
+    TODO, DEADLINE, EVENT
+}
+
 class Task {
 
-    private String kind;
+    private TaskType type;
     private String description;
     private boolean isDone;
     private String by;
     private String from;
     private String to;
 
-    private Task(String kind, String desc) {
-        this.kind = kind;
+    private Task(TaskType type, String desc) {
+        this.type = type;
         this.description = desc;
         this.isDone = false;
     }
 
-    public static Task createToDo(String desc) { return new Task("T", desc); }
+    public static Task createToDo(String desc) { return new Task(TaskType.TODO, desc); }
     public static Task createDeadline(String desc, String by) {
-        Task t = new Task("D", desc);
+        Task t = new Task(TaskType.DEADLINE, desc);
         t.by = by;
         return t;
     }
     public static Task createEvent(String desc, String from, String to) {
-        Task t = new Task("E", desc);
+        Task t = new Task(TaskType.EVENT, desc);
         t.from = from;
         t.to = to;
         return t;
@@ -198,14 +201,15 @@ class Task {
 
     public void markDone() { isDone = true; }
     public void markUndone() { isDone = false; }
+    public boolean isDone() { return isDone; }
 
     private String status() { return isDone ? "[X]" : "[ ]"; }
 
     @Override
     public String toString() {
-        if ("D".equals(kind)) {
+        if (type == TaskType.DEADLINE) {
             return "[D]" + status() + " " + description + " (by: " + by + ")";
-        } else if ("E".equals(kind)) {
+        } else if (type == TaskType.EVENT) {
             return "[E]" + status() + " " + description + " (from: " + from + " to: " + to + ")";
         } else {
             return "[T]" + status() + " " + description;
