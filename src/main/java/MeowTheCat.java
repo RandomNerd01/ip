@@ -2,14 +2,18 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
+
 public class MeowTheCat {
 
-    static String pathStr = "SaveFile.txt";
-    static Path dataPath = Path.of(pathStr);
+
+    private static final Path dataPath = Paths.get("SaveFile.txt");
 
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
@@ -68,9 +72,9 @@ public class MeowTheCat {
     }
 
 
+
     private static void loadTasks(List<Task> tasks) throws IOException {
         if (!Files.exists(dataPath)) {
-
             return;
         }
         List<String> lines = Files.readAllLines(dataPath, StandardCharsets.UTF_8);
@@ -127,7 +131,7 @@ public class MeowTheCat {
     private static void handleTodo(String line, ArrayList<Task> tasks) throws MeowException {
         String rest = line.length() > 4 ? line.substring(4).trim() : "";
         if (rest.isEmpty()) throw new MeowException("The description of a todo cannot be empty.");
-        Task t = Task.createToDo(rest);
+        Task t = new ToDo(rest);
         tasks.add(t);
         try {
             saveTasks(tasks);
@@ -147,10 +151,11 @@ public class MeowTheCat {
         int byIndex = indexOfIgnoreCase(line, "/by");
         if (line.length() <= 8 || byIndex == -1) throw new MeowException("The deadline command requires a description and '/by <time>'.");
         String desc = line.substring(8, byIndex).trim();
-        String by = line.substring(byIndex + 3).trim();
+        String byRaw = line.substring(byIndex + 3).trim();
         if (desc.isEmpty()) throw new MeowException("The description of a deadline cannot be empty.");
-        if (by.isEmpty()) throw new MeowException("A deadline must have a '/by' time.");
-        Task t = Task.createDeadline(desc, by);
+        if (byRaw.isEmpty()) throw new MeowException("A deadline must have a '/by' time.");
+        LocalDateTimeHolder ldt = DateTimeUtil.obtainValuesDate(byRaw);
+        Task t = new Deadline(desc, ldt);
         tasks.add(t);
         try {
             saveTasks(tasks);
@@ -171,11 +176,13 @@ public class MeowTheCat {
         int toIndex = indexOfIgnoreCase(line, "/to");
         if (line.length() <= 5 || fromIndex == -1 || toIndex == -1) throw new MeowException("The event command requires '/from' and '/to'.");
         String desc = line.substring(5, fromIndex).trim();
-        String from = line.substring(fromIndex + 5, toIndex).trim();
-        String to = line.substring(toIndex + 3).trim();
+        String fromRaw = line.substring(fromIndex + 5, toIndex).trim();
+        String toRaw = line.substring(toIndex + 3).trim();
         if (desc.isEmpty()) throw new MeowException("The description of an event cannot be empty.");
-        if (from.isEmpty() || to.isEmpty()) throw new MeowException("An event must have both '/from' and '/to' values.");
-        Task t = Task.createEvent(desc, from, to);
+        if (fromRaw.isEmpty() || toRaw.isEmpty()) throw new MeowException("An event must have both '/from' and '/to' values.");
+        LocalDateTimeHolder fromLdt = DateTimeUtil.obtainValuesDate(fromRaw);
+        LocalDateTimeHolder toLdt = DateTimeUtil.obtainValuesDate(toRaw);
+        Task t = new Event(desc, fromLdt, toLdt);
         tasks.add(t);
         try {
             saveTasks(tasks);
@@ -234,6 +241,7 @@ public class MeowTheCat {
     }
 
 
+
     private static void printList(ArrayList<Task> tasks) {
         System.out.println("____________________________________________________________");
         if (tasks.isEmpty()) {
@@ -264,99 +272,194 @@ class MeowException extends Exception {
     public MeowException(String msg) { super(msg); }
 }
 
-enum TaskType {
-    TODO, DEADLINE, EVENT
+
+class LocalDateTimeHolder {
+    final LocalDateTime dateTime;
+    final boolean timeIncluded;
+
+    LocalDateTimeHolder(LocalDateTime dt, boolean timeIncluded) {
+        this.dateTime = dt;
+        this.timeIncluded = timeIncluded;
+    }
 }
 
-class Task {
 
-    private TaskType type;
-    private String description;
-    private boolean isDone;
-    private String by;
-    private String from;
-    private String to;
+class DateTimeUtil {
 
-    private Task(TaskType type, String desc) {
-        this.type = type;
-        this.description = desc;
+
+    public static LocalDateTimeHolder obtainValuesDate(String input) {
+        input = input.trim();
+        int len = input.length();
+        int idx = 0;
+
+        StringBuilder sb = new StringBuilder();
+        while (idx < len && input.charAt(idx) != '-') {
+            sb.append(input.charAt(idx));
+            idx++;
+        }
+
+        String yearStr = sb.toString();
+        idx++;
+
+        sb.setLength(0);
+        while (idx < len && input.charAt(idx) != '-') {
+            sb.append(input.charAt(idx));
+            idx++;
+        }
+
+        String monthStr = sb.toString();
+        idx++;
+
+        sb.setLength(0);
+        while (idx < len) {
+            sb.append(input.charAt(idx));
+            idx++;
+        }
+        String dayStr = sb.toString();
+
+        int year = Integer.parseInt(yearStr);
+        int month = Integer.parseInt(monthStr);
+        int day = Integer.parseInt(dayStr);
+
+        LocalDate ld = LocalDate.of(year, month, day);
+        LocalDateTime dt = ld.atStartOfDay();
+        return new LocalDateTimeHolder(dt, false);
+    }
+
+
+    public static String formatForDisplay(LocalDateTimeHolder holder) {
+        DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("MMM dd yyyy");
+        return holder.dateTime.toLocalDate().format(dateFmt);
+    }
+}
+
+
+
+abstract class Task {
+    protected final String description;
+    protected boolean isDone;
+
+    protected Task(String description) {
+        this.description = description;
         this.isDone = false;
-    }
-
-    public static Task createToDo(String desc) { return new Task(TaskType.TODO, desc); }
-    public static Task createDeadline(String desc, String by) {
-        Task t = new Task(TaskType.DEADLINE, desc);
-        t.by = by;
-        return t;
-    }
-    public static Task createEvent(String desc, String from, String to) {
-        Task t = new Task(TaskType.EVENT, desc);
-        t.from = from;
-        t.to = to;
-        return t;
     }
 
     public void markDone() { isDone = true; }
     public void markUndone() { isDone = false; }
     public boolean isDone() { return isDone; }
 
-    public String serialize() {
-        String done = isDone ? "1" : "0";
-        if (type == TaskType.DEADLINE) {
-            return String.join(" | ", "D", done, description, by);
-        } else if (type == TaskType.EVENT) {
-            return String.join(" | ", "E", done, description, from, to);
-        } else {
-            return String.join(" | ", "T", done, description);
-        }
-    }
+
+    public abstract String serialize();
 
     public static Task deserialize(String line) throws MeowException {
         String[] parts = line.split("\\|", -1);
         for (int i = 0; i < parts.length; i++) parts[i] = parts[i].trim();
-        if (parts.length < 3) throw new MeowException("Not enough fields");
+        if (parts.length < 3) throw new MeowException("Not enough fields in saved line");
         String type = parts[0];
         String doneStr = parts[1];
         String desc = parts[2];
-
         boolean done;
-        if (!("0".equals(doneStr) || "1".equals(doneStr))) {
-            throw new MeowException("Invalid done flag (should be 0 or 1)");
-        }
+        if (!("0".equals(doneStr) || "1".equals(doneStr))) throw new MeowException("Invalid done flag (should be 0 or 1)");
         done = "1".equals(doneStr);
 
         if ("T".equalsIgnoreCase(type)) {
-            Task t = Task.createToDo(desc);
+            ToDo t = new ToDo(desc);
             if (done) t.markDone();
             return t;
         } else if ("D".equalsIgnoreCase(type)) {
-            if (parts.length < 4) throw new MeowException("Deadline missing '/by' field");
-            String by = parts[3];
-            Task t = Task.createDeadline(desc, by);
-            if (done) t.markDone();
-            return t;
+            if (parts.length < 4) throw new MeowException("Deadline missing time field");
+            String serializedDate = parts[3];
+            try {
+                LocalDateTimeHolder holder = DateTimeUtil.obtainValuesDate(serializedDate);
+                Deadline d = new Deadline(desc, holder);
+                if (done) d.markDone();
+                return d;
+            } catch (Exception e) {
+                throw new MeowException("Invalid date format for deadline: " + serializedDate);
+            }
         } else if ("E".equalsIgnoreCase(type)) {
-            if (parts.length < 5) throw new MeowException("Event missing '/from' or '/to' field");
-            String from = parts[3];
-            String to = parts[4];
-            Task t = Task.createEvent(desc, from, to);
-            if (done) t.markDone();
-            return t;
+            if (parts.length < 5) throw new MeowException("Event missing from/to fields");
+            String fromSer = parts[3];
+            String toSer = parts[4];
+            try {
+                LocalDateTimeHolder fromH = DateTimeUtil.obtainValuesDate(fromSer);
+                LocalDateTimeHolder toH = DateTimeUtil.obtainValuesDate(toSer);
+                Event ev = new Event(desc, fromH, toH);
+                if (done) ev.markDone();
+                return ev;
+            } catch (Exception e) {
+                throw new MeowException("Invalid date/time format for event: " + e.getMessage());
+            }
         } else {
             throw new MeowException("Unknown task type: " + type);
         }
     }
 
-    private String status() { return isDone ? "[X]" : "[ ]"; }
+    protected String doneFlag() { return isDone ? "[X]" : "[ ]"; }
+
+    @Override
+    public abstract String toString();
+}
+
+
+class ToDo extends Task {
+    public ToDo(String desc) { super(desc); }
+
+    @Override
+    public String serialize() {
+        return String.join(" | ", "T", (isDone ? "1" : "0"), description);
+    }
 
     @Override
     public String toString() {
-        if (type == TaskType.DEADLINE) {
-            return "[D]" + status() + " " + description + " (by: " + by + ")";
-        } else if (type == TaskType.EVENT) {
-            return "[E]" + status() + " " + description + " (from: " + from + " to: " + to + ")";
-        } else {
-            return "[T]" + status() + " " + description;
-        }
+        return "[T]" + doneFlag() + " " + description;
+    }
+}
+
+
+class Deadline extends Task {
+    private final LocalDateTimeHolder byHolder;
+
+    public Deadline(String desc, LocalDateTimeHolder byHolder) {
+        super(desc);
+        this.byHolder = byHolder;
+    }
+
+    @Override
+    public String serialize() {
+        String iso = byHolder.dateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
+        return String.join(" | ", "D", (isDone ? "1" : "0"), description, iso);
+    }
+
+    @Override
+    public String toString() {
+        String formatted = DateTimeUtil.formatForDisplay(byHolder);
+        return "[D]" + doneFlag() + " " + description + " (by: " + formatted + ")";
+    }
+}
+
+
+class Event extends Task {
+    private final LocalDateTimeHolder fromHolder;
+    private final LocalDateTimeHolder toHolder;
+
+    public Event(String desc, LocalDateTimeHolder fromHolder, LocalDateTimeHolder toHolder) {
+        super(desc);
+        this.fromHolder = fromHolder;
+        this.toHolder = toHolder;
+    }
+
+    @Override
+    public String serialize() {
+        String fromIso = fromHolder.dateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
+        String toIso = toHolder.dateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
+        return String.join(" | ", "E", (isDone ? "1" : "0"), description, fromIso, toIso);
+    }
+
+    @Override
+    public String toString() {
+        String formattedFrom = DateTimeUtil.formatForDisplay(fromHolder);
+        String formattedTo = DateTimeUtil.formatForDisplay(toHolder);
+        return "[E]" + doneFlag() + " " + description + " (from: " + formattedFrom + " to: " + formattedTo + ")";
     }
 }
