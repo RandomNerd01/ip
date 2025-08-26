@@ -5,260 +5,272 @@ import java.nio.file.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Scanner;
-
+import java.util.*;
 
 public class MeowTheCat {
 
-
-    private static final Path dataPath = Paths.get("SaveFile.txt");
-
     public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
-        ArrayList<Task> tasks = new ArrayList<>();
+        ConsoleUI ui = new ConsoleUI();
+        FileStore store = new FileStore(Paths.get("SaveFile.txt"));
+        TaskCollection tasks;
 
 
         try {
-            loadTasks(tasks);
-        } catch (IOException e) {
-            System.out.println("____________________________________________________________");
-            System.out.println("MEOW OOPS!!! Could not read save file: " + e.getMessage());
-            System.out.println("Starting with an empty task list.");
-            System.out.println("____________________________________________________________");
+            List<Task> loaded = store.load();
+            tasks = new TaskCollection(loaded);
+        } catch (IOException | MeowException e) {
+            ui.showLoadingError(e.getMessage());
+            tasks = new TaskCollection();
         }
 
+        ui.showGreeting();
+
+        Scanner scanner = new Scanner(System.in);
+        while (true) {
+            String line = ui.readLine(scanner);
+            if (line == null) {
+                break;
+            }
+            try {
+                String cmd = CommandParser.commandType(line);
+                if ("bye".equalsIgnoreCase(cmd)) {
+                    ui.showGoodbye();
+                    break;
+                } else if ("list".equalsIgnoreCase(cmd)) {
+                    ui.showTaskList(tasks.getAll());
+                } else if ("mark".equalsIgnoreCase(cmd)) {
+                    int idx = CommandParser.parseIndex(line, "mark");
+                    Task t = tasks.markDone(idx);
+                    storeSafeSave(store, tasks, ui, "mark");
+                    ui.showMarked(t);
+                } else if ("unmark".equalsIgnoreCase(cmd)) {
+                    int idx = CommandParser.parseIndex(line, "unmark");
+                    Task t = tasks.markUndone(idx);
+                    storeSafeSave(store, tasks, ui, "unmark");
+                    ui.showUnmarked(t);
+                } else if ("delete".equalsIgnoreCase(cmd)) {
+                    int idx = CommandParser.parseIndex(line, "delete");
+                    Task removed = tasks.delete(idx);
+                    storeSafeSave(store, tasks, ui, "delete");
+                    ui.showDeleted(removed, tasks.size());
+                } else if ("todo".equalsIgnoreCase(cmd)) {
+                    String desc = CommandParser.parseTodoDesc(line);
+                    Task t = new ToDo(desc);
+                    tasks.add(t);
+                    storeSafeSave(store, tasks, ui, "add-todo");
+                    ui.showAdded(t, tasks.size());
+                } else if ("deadline".equalsIgnoreCase(cmd)) {
+                    String[] parts = CommandParser.parseDeadlineParts(line);
+                    String desc = parts[0];
+                    String dateRaw = parts[1];
+                    LocalDateTimeHolder holder = DateTimeUtil.obtainValuesDate(dateRaw);
+                    Task t = new Deadline(desc, holder);
+                    tasks.add(t);
+                    storeSafeSave(store, tasks, ui, "add-deadline");
+                    ui.showAdded(t, tasks.size());
+                } else if ("event".equalsIgnoreCase(cmd)) {
+                    String[] parts = CommandParser.parseEventParts(line);
+                    String desc = parts[0];
+                    String fromRaw = parts[1];
+                    String toRaw = parts[2];
+                    LocalDateTimeHolder fromH = DateTimeUtil.obtainValuesDate(fromRaw);
+                    LocalDateTimeHolder toH = DateTimeUtil.obtainValuesDate(toRaw);
+                    Task t = new Event(desc, fromH, toH);
+                    tasks.add(t);
+                    storeSafeSave(store, tasks, ui, "add-event");
+                    ui.showAdded(t, tasks.size());
+                } else {
+                    throw new MeowException("MEOW!! MEOW is Confused!!");
+                }
+            } catch (MeowException me) {
+                ui.showError(me.getMessage());
+            } catch (Exception e) {
+                ui.showError("Something went wrong: " + e.getMessage());
+            }
+        }
+
+        scanner.close();
+    }
+
+    private static void storeSafeSave(FileStore store, TaskCollection tasks, ConsoleUI ui, String action) {
+        try {
+            store.save(tasks.getAll());
+        } catch (IOException e) {
+            ui.showSaveError(action, e.getMessage());
+        }
+    }
+}
+
+
+
+
+class ConsoleUI {
+    void showGreeting() {
         System.out.println("____________________________________________________________");
         System.out.println("Hello! I'm MeowTheCat");
         System.out.println("What can I do for you?");
         System.out.println("____________________________________________________________");
-
-        while (true) {
-            String line = sc.nextLine().trim();
-            try {
-                if (line.equalsIgnoreCase("bye")) {
-                    printGoodbye();
-                    break;
-                } else if (line.equalsIgnoreCase("list")) {
-                    printList(tasks);
-                } else if (line.toLowerCase().startsWith("mark ")) {
-                    handleMark(line, tasks);
-                } else if (line.toLowerCase().startsWith("unmark ")) {
-                    handleUnmark(line, tasks);
-                } else if (line.toLowerCase().startsWith("delete ")) {
-                    handleDelete(line, tasks);
-                } else if (line.toLowerCase().startsWith("todo")) {
-                    handleTodo(line, tasks);
-                } else if (line.toLowerCase().startsWith("deadline")) {
-                    handleDeadline(line, tasks);
-                } else if (line.toLowerCase().startsWith("event")) {
-                    handleEvent(line, tasks);
-                } else {
-                    throw new MeowException("MEOW!! MEOW is Confused!!");
-                }
-            } catch (MeowException de) {
-                System.out.println("____________________________________________________________");
-                System.out.println("MEOW OOPS!!! " + de.getMessage());
-                System.out.println("____________________________________________________________");
-            } catch (Exception e) {
-                System.out.println("____________________________________________________________");
-                System.out.println("MEOW OOPS!!! Something went wrong: " + e.getMessage());
-                System.out.println("____________________________________________________________");
-            }
-        }
-
-        sc.close();
     }
 
+    String readLine(Scanner sc) {
+        if (!sc.hasNextLine()) return null;
+        return sc.nextLine().trim();
+    }
 
+    void showGoodbye() {
+        System.out.println("____________________________________________________________");
+        System.out.println("Bye. Hope to see you again soon!");
+        System.out.println("____________________________________________________________");
+    }
 
-    private static void loadTasks(List<Task> tasks) throws IOException {
-        if (!Files.exists(dataPath)) {
-            return;
+    void showTaskList(List<Task> tasks) {
+        System.out.println("____________________________________________________________");
+        System.out.println("Here are the tasks in your list:");
+        for (int i = 0; i < tasks.size(); i++) {
+            System.out.println((i + 1) + "." + tasks.get(i));
         }
-        List<String> lines = Files.readAllLines(dataPath, StandardCharsets.UTF_8);
+        System.out.println("____________________________________________________________");
+    }
+
+    void showAdded(Task t, int total) {
+        System.out.println("____________________________________________________________");
+        System.out.println("Got it. I've added this task:");
+        System.out.println("  " + t);
+        System.out.println("Now you have " + total + " tasks in the list");
+        System.out.println("____________________________________________________________");
+    }
+
+    void showMarked(Task t) {
+        System.out.println("____________________________________________________________");
+        System.out.println("Nice! I've marked this task as done:");
+        System.out.println("  " + t);
+        System.out.println("____________________________________________________________");
+    }
+
+    void showUnmarked(Task t) {
+        System.out.println("____________________________________________________________");
+        System.out.println("OK, I've marked this task as not done yet:");
+        System.out.println("  " + t);
+        System.out.println("____________________________________________________________");
+    }
+
+    void showDeleted(Task t, int remaining) {
+        System.out.println("____________________________________________________________");
+        System.out.println("Meow has Noted. I've removed this task:");
+        System.out.println("  " + t);
+        System.out.println("Now you have " + remaining + " tasks in the list");
+        System.out.println("____________________________________________________________");
+    }
+
+    void showError(String msg) {
+        System.out.println("____________________________________________________________");
+        System.out.println("MEOW OOPS!!! " + msg);
+        System.out.println("____________________________________________________________");
+    }
+
+    void showLoadingError(String details) {
+        System.out.println("____________________________________________________________");
+        System.out.println("MEOW OOPS!!! Could not read save file: " + details);
+        System.out.println("Starting with an empty task list.");
+        System.out.println("____________________________________________________________");
+    }
+
+    void showSaveError(String action, String details) {
+        System.out.println("____________________________________________________________");
+        System.out.println("MEOW OOPS!!! Could not save after " + action + ": " + details);
+        System.out.println("____________________________________________________________");
+    }
+}
+
+
+
+class FileStore {
+    private final Path path;
+
+    FileStore(Path path) {
+        this.path = path;
+    }
+
+    List<Task> load() throws IOException, MeowException {
+        List<Task> tasks = new ArrayList<>();
+        if (!Files.exists(path)) return tasks;
+        List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
         int lineNo = 0;
-        for (String raw : lines) {
+        for (String line : lines) {
             lineNo++;
-            if (raw.trim().isEmpty()) continue;
-            try {
-                Task t = Task.deserialize(raw);
-                tasks.add(t);
-            } catch (MeowException e) {
-                System.out.println("____________________________________________________________");
-                System.out.println("MEOW WARNING: Skipping corrupted line " + lineNo + " in save file: " + e.getMessage());
-                System.out.println("____________________________________________________________");
-            }
+            if (line.trim().isEmpty()) continue;
+            Task t = Task.deserialize(line);
+            tasks.add(t);
         }
+        return tasks;
     }
 
-    private static void saveTasks(List<Task> tasks) throws IOException {
+    void save(List<Task> tasks) throws IOException {
         try (BufferedWriter bw = Files.newBufferedWriter(
-                dataPath, StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
+                path, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
             for (Task t : tasks) {
                 bw.write(t.serialize());
                 bw.newLine();
             }
         }
     }
+}
 
 
 
-    private static void handleDelete(String line, ArrayList<Task> tasks) throws MeowException {
+class CommandParser {
+
+    static String commandType(String line) {
+        if (line == null || line.trim().isEmpty()) return "";
+        String lower = line.trim().toLowerCase();
+        if (lower.equals("bye")) return "bye";
+        if (lower.equals("list")) return "list";
+        if (lower.startsWith("mark ")) return "mark";
+        if (lower.startsWith("unmark ")) return "unmark";
+        if (lower.startsWith("delete ")) return "delete";
+        if (lower.startsWith("todo")) return "todo";
+        if (lower.startsWith("deadline")) return "deadline";
+        if (lower.startsWith("event")) return "event";
+        return "unknown";
+    }
+
+    static int parseIndex(String line, String cmd) throws MeowException {
         try {
-            int idx = Integer.parseInt(line.substring(7).trim()) - 1;
-            if (idx < 0 || idx >= tasks.size()) throw new MeowException("This number does not align with the tasks you have");
-            Task removed = tasks.remove(idx);
-            try {
-                saveTasks(tasks);
-            } catch (IOException e) {
-                System.out.println("____________________________________________________________");
-                System.out.println("MEOW OOPS!!! Could not save after delete: " + e.getMessage());
-                System.out.println("____________________________________________________________");
-            }
-            System.out.println("____________________________________________________________");
-            System.out.println("Meow has Noted. I've removed this task:");
-            System.out.println("  " + removed);
-            System.out.println("Now you have " + tasks.size() + " tasks in the list");
-            System.out.println("____________________________________________________________");
+            String numStr = line.substring(cmd.length()).trim();
+            int idx = Integer.parseInt(numStr) - 1;
+            if (idx < 0) throw new MeowException("This number does not align with the tasks you have");
+            return idx;
         } catch (NumberFormatException e) {
-            throw new MeowException("Please provide a valid task number after 'delete'.");
+            throw new MeowException("Please provide a valid task number after '" + cmd + "'.");
         }
     }
 
-    private static void handleTodo(String line, ArrayList<Task> tasks) throws MeowException {
+    static String parseTodoDesc(String line) throws MeowException {
         String rest = line.length() > 4 ? line.substring(4).trim() : "";
         if (rest.isEmpty()) throw new MeowException("The description of a todo cannot be empty.");
-        Task t = new ToDo(rest);
-        tasks.add(t);
-        try {
-            saveTasks(tasks);
-        } catch (IOException e) {
-            System.out.println("____________________________________________________________");
-            System.out.println("MEOW OOPS!!! Could not save after adding todo: " + e.getMessage());
-            System.out.println("____________________________________________________________");
-        }
-        System.out.println("____________________________________________________________");
-        System.out.println("Got it. I've added this task:");
-        System.out.println("  " + t);
-        System.out.println("Now you have " + tasks.size() + " tasks in the list");
-        System.out.println("____________________________________________________________");
+        return rest;
     }
 
-    private static void handleDeadline(String line, ArrayList<Task> tasks) throws MeowException {
+    static String[] parseDeadlineParts(String line) throws MeowException {
         int byIndex = indexOfIgnoreCase(line, "/by");
         if (line.length() <= 8 || byIndex == -1) throw new MeowException("The deadline command requires a description and '/by <time>'.");
         String desc = line.substring(8, byIndex).trim();
-        String byRaw = line.substring(byIndex + 3).trim();
+        String by = line.substring(byIndex + 3).trim();
         if (desc.isEmpty()) throw new MeowException("The description of a deadline cannot be empty.");
-        if (byRaw.isEmpty()) throw new MeowException("A deadline must have a '/by' time.");
-        LocalDateTimeHolder ldt = DateTimeUtil.obtainValuesDate(byRaw);
-        Task t = new Deadline(desc, ldt);
-        tasks.add(t);
-        try {
-            saveTasks(tasks);
-        } catch (IOException e) {
-            System.out.println("____________________________________________________________");
-            System.out.println("MEOW OOPS!!! Could not save after adding deadline: " + e.getMessage());
-            System.out.println("____________________________________________________________");
-        }
-        System.out.println("____________________________________________________________");
-        System.out.println("Got it. I've added this task:");
-        System.out.println("  " + t);
-        System.out.println("Now you have " + tasks.size() + " tasks in the list");
-        System.out.println("____________________________________________________________");
+        if (by.isEmpty()) throw new MeowException("A deadline must have a '/by' time.");
+        return new String[]{desc, by};
     }
 
-    private static void handleEvent(String line, ArrayList<Task> tasks) throws MeowException {
+    static String[] parseEventParts(String line) throws MeowException {
         int fromIndex = indexOfIgnoreCase(line, "/from");
         int toIndex = indexOfIgnoreCase(line, "/to");
         if (line.length() <= 5 || fromIndex == -1 || toIndex == -1) throw new MeowException("The event command requires '/from' and '/to'.");
         String desc = line.substring(5, fromIndex).trim();
-        String fromRaw = line.substring(fromIndex + 5, toIndex).trim();
-        String toRaw = line.substring(toIndex + 3).trim();
+        String from = line.substring(fromIndex + 5, toIndex).trim();
+        String to = line.substring(toIndex + 3).trim();
         if (desc.isEmpty()) throw new MeowException("The description of an event cannot be empty.");
-        if (fromRaw.isEmpty() || toRaw.isEmpty()) throw new MeowException("An event must have both '/from' and '/to' values.");
-        LocalDateTimeHolder fromLdt = DateTimeUtil.obtainValuesDate(fromRaw);
-        LocalDateTimeHolder toLdt = DateTimeUtil.obtainValuesDate(toRaw);
-        Task t = new Event(desc, fromLdt, toLdt);
-        tasks.add(t);
-        try {
-            saveTasks(tasks);
-        } catch (IOException e) {
-            System.out.println("____________________________________________________________");
-            System.out.println("MEOW OOPS!!! Could not save after adding event: " + e.getMessage());
-            System.out.println("____________________________________________________________");
-        }
-        System.out.println("____________________________________________________________");
-        System.out.println("Got it. I've added this task:");
-        System.out.println("  " + t);
-        System.out.println("Now you have " + tasks.size() + " tasks in the list");
-        System.out.println("____________________________________________________________");
-    }
-
-    private static void handleMark(String line, ArrayList<Task> tasks) throws MeowException {
-        try {
-            int idx = Integer.parseInt(line.substring(5).trim()) - 1;
-            if (idx < 0 || idx >= tasks.size()) throw new MeowException("This number does not align with the tasks you have");
-            tasks.get(idx).markDone();
-            try {
-                saveTasks(tasks);
-            } catch (IOException e) {
-                System.out.println("____________________________________________________________");
-                System.out.println("MEOW OOPS!!! Could not save after mark: " + e.getMessage());
-                System.out.println("____________________________________________________________");
-            }
-            System.out.println("____________________________________________________________");
-            System.out.println("Nice! I've marked this task as done:");
-            System.out.println("  " + tasks.get(idx));
-            System.out.println("____________________________________________________________");
-        } catch (NumberFormatException e) {
-            throw new MeowException("Please provide a valid task number after 'mark'.");
-        }
-    }
-
-    private static void handleUnmark(String line, ArrayList<Task> tasks) throws MeowException {
-        try {
-            int idx = Integer.parseInt(line.substring(7).trim()) - 1;
-            if (idx < 0 || idx >= tasks.size()) throw new MeowException("This number does not align with the tasks you have");
-            tasks.get(idx).markUndone();
-            try {
-                saveTasks(tasks);
-            } catch (IOException e) {
-                System.out.println("____________________________________________________________");
-                System.out.println("MEOW OOPS!!! Could not save after unmark: " + e.getMessage());
-                System.out.println("____________________________________________________________");
-            }
-            System.out.println("____________________________________________________________");
-            System.out.println("OK, I've marked this task as not done yet:");
-            System.out.println("  " + tasks.get(idx));
-            System.out.println("____________________________________________________________");
-        } catch (NumberFormatException e) {
-            throw new MeowException("Please provide a valid task number after 'unmark'.");
-        }
-    }
-
-
-
-    private static void printList(ArrayList<Task> tasks) {
-        System.out.println("____________________________________________________________");
-        if (tasks.isEmpty()) {
-            System.out.println("Here are the tasks in your list:");
-        } else {
-            System.out.println("Here are the tasks in your list:");
-            for (int i = 0; i < tasks.size(); i++) {
-                System.out.println((i + 1) + "." + tasks.get(i));
-            }
-        }
-        System.out.println("____________________________________________________________");
-    }
-
-    private static void printGoodbye() {
-        System.out.println("____________________________________________________________");
-        System.out.println("Bye. Hope to see you again soon!");
-        System.out.println("____________________________________________________________");
+        if (from.isEmpty() || to.isEmpty()) throw new MeowException("An event must have both '/from' and '/to' values.");
+        return new String[]{desc, from, to};
     }
 
     private static int indexOfIgnoreCase(String s, String sub) {
@@ -268,15 +280,41 @@ public class MeowTheCat {
 
 
 
+class TaskCollection {
+    private final List<Task> tasks;
+
+    TaskCollection() { this.tasks = new ArrayList<>(); }
+    TaskCollection(List<Task> initial) { this.tasks = new ArrayList<>(initial); }
+
+    void add(Task t) { tasks.add(t); }
+    Task delete(int idx) throws MeowException {
+        if (idx < 0 || idx >= tasks.size()) throw new MeowException("This number does not align with the tasks you have");
+        return tasks.remove(idx);
+    }
+    Task markDone(int idx) throws MeowException {
+        if (idx < 0 || idx >= tasks.size()) throw new MeowException("This number does not align with the tasks you have");
+        Task t = tasks.get(idx);
+        t.markDone();
+        return t;
+    }
+    Task markUndone(int idx) throws MeowException {
+        if (idx < 0 || idx >= tasks.size()) throw new MeowException("This number does not align with the tasks you have");
+        Task t = tasks.get(idx);
+        t.markUndone();
+        return t;
+    }
+    List<Task> getAll() { return Collections.unmodifiableList(tasks); }
+    int size() { return tasks.size(); }
+}
+
+
 class MeowException extends Exception {
     public MeowException(String msg) { super(msg); }
 }
 
-
 class LocalDateTimeHolder {
     final LocalDateTime dateTime;
     final boolean timeIncluded;
-
     LocalDateTimeHolder(LocalDateTime dt, boolean timeIncluded) {
         this.dateTime = dt;
         this.timeIncluded = timeIncluded;
@@ -285,7 +323,6 @@ class LocalDateTimeHolder {
 
 
 class DateTimeUtil {
-
 
     public static LocalDateTimeHolder obtainValuesDate(String input) {
         input = input.trim();
@@ -297,7 +334,9 @@ class DateTimeUtil {
             sb.append(input.charAt(idx));
             idx++;
         }
-
+        if (idx >= len || input.charAt(idx) != '-') {
+            throw new IllegalArgumentException("Invalid date format: expected yyyy-MM-dd");
+        }
         String yearStr = sb.toString();
         idx++;
 
@@ -306,7 +345,9 @@ class DateTimeUtil {
             sb.append(input.charAt(idx));
             idx++;
         }
-
+        if (idx >= len || input.charAt(idx) != '-') {
+            throw new IllegalArgumentException("Invalid date format: expected yyyy-MM-dd");
+        }
         String monthStr = sb.toString();
         idx++;
 
@@ -326,13 +367,11 @@ class DateTimeUtil {
         return new LocalDateTimeHolder(dt, false);
     }
 
-
     public static String formatForDisplay(LocalDateTimeHolder holder) {
         DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("MMM dd yyyy");
         return holder.dateTime.toLocalDate().format(dateFmt);
     }
 }
-
 
 
 abstract class Task {
@@ -347,7 +386,6 @@ abstract class Task {
     public void markDone() { isDone = true; }
     public void markUndone() { isDone = false; }
     public boolean isDone() { return isDone; }
-
 
     public abstract String serialize();
 
@@ -401,7 +439,6 @@ abstract class Task {
     public abstract String toString();
 }
 
-
 class ToDo extends Task {
     public ToDo(String desc) { super(desc); }
 
@@ -415,7 +452,6 @@ class ToDo extends Task {
         return "[T]" + doneFlag() + " " + description;
     }
 }
-
 
 class Deadline extends Task {
     private final LocalDateTimeHolder byHolder;
@@ -437,7 +473,6 @@ class Deadline extends Task {
         return "[D]" + doneFlag() + " " + description + " (by: " + formatted + ")";
     }
 }
-
 
 class Event extends Task {
     private final LocalDateTimeHolder fromHolder;
