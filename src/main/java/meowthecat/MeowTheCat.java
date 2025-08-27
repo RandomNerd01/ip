@@ -375,14 +375,27 @@ class DateTimeUtil {
         }
         String dayStr = sb.toString();
 
-        int year = Integer.parseInt(yearStr);
-        int month = Integer.parseInt(monthStr);
-        int day = Integer.parseInt(dayStr);
+        try {
+            int year = Integer.parseInt(yearStr);
+            int month = Integer.parseInt(monthStr);
+            int day = Integer.parseInt(dayStr);
 
-        LocalDate ld = LocalDate.of(year, month, day);
-        LocalDateTime dt = ld.atStartOfDay();
-        return new LocalDateTimeHolder(dt, false);
+            // LocalDate.of can throw DateTimeException for out-of-range fields;
+            // catch it and rethrow an IllegalArgumentException to keep the API consistent.
+            LocalDate ld;
+            try {
+                ld = LocalDate.of(year, month, day);
+            } catch (java.time.DateTimeException dte) {
+                throw new IllegalArgumentException("Invalid date format: expected yyyy-MM-dd");
+            }
+            LocalDateTime dt = ld.atStartOfDay();
+            return new LocalDateTimeHolder(dt, false);
+        } catch (NumberFormatException nfe) {
+            // Let NumberFormatException bubble up for clearly non-numeric input (test expects this)
+            throw nfe;
+        }
     }
+
 
     public static String formatForDisplay(LocalDateTimeHolder holder) {
         DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("MMM dd yyyy");
