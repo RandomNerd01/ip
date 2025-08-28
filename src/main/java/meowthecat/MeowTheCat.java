@@ -6,7 +6,10 @@ import java.nio.file.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Scanner;
+import java.util.Collections;
 
 public class MeowTheCat {
 
@@ -233,17 +236,37 @@ class FileStore {
 class CommandParser {
 
     static String commandType(String line) {
-        if (line == null || line.trim().isEmpty()) return "";
+        if (line == null || line.trim().isEmpty()) {
+            return "";
+        }
         String lower = line.trim().toLowerCase();
-        if (lower.equals("bye")) return "bye";
-        if (lower.equals("list")) return "list";
-        if (lower.equals("clear")) return "clear";
-        if (lower.startsWith("mark ")) return "mark";
-        if (lower.startsWith("unmark ")) return "unmark";
-        if (lower.startsWith("delete ")) return "delete";
-        if (lower.startsWith("todo")) return "todo";
-        if (lower.startsWith("deadline")) return "deadline";
-        if (lower.startsWith("event")) return "event";
+        if (lower.equals("bye")) {
+            return "bye";
+        }
+        if (lower.equals("list")) {
+            return "list";
+        }
+        if (lower.equals("clear")) {
+            return "clear";
+        }
+        if (lower.startsWith("mark ")) {
+            return "mark";
+        }
+        if (lower.startsWith("unmark ")) {
+            return "unmark";
+        }
+        if (lower.startsWith("delete ")) {
+            return "delete";
+        }
+        if (lower.startsWith("todo")) {
+            return "todo";
+        }
+        if (lower.startsWith("deadline")) {
+            return "deadline";
+        }
+        if (lower.startsWith("event")) {
+            return "event";
+        }
         return "unknown";
     }
 
@@ -251,7 +274,9 @@ class CommandParser {
         try {
             String numStr = line.substring(cmd.length()).trim();
             int idx = Integer.parseInt(numStr) - 1;
-            if (idx < 0) throw new MeowException("This number does not align with the tasks you have");
+            if (idx < 0) {
+                throw new MeowException("This number does not align with the tasks you have");
+            }
             return idx;
         } catch (NumberFormatException e) {
             throw new MeowException("Please provide a valid task number after '" + cmd + "'.");
@@ -266,23 +291,35 @@ class CommandParser {
 
     static String[] parseDeadlineParts(String line) throws MeowException {
         int byIndex = indexOfIgnoreCase(line, "/by");
-        if (line.length() <= 8 || byIndex == -1) throw new MeowException("The deadline command requires a description and '/by <time>'.");
+        if (line.length() <= 8 || byIndex == -1) {
+            throw new MeowException("The deadline command requires a description and '/by <time>'.");
+        }
         String desc = line.substring(8, byIndex).trim();
         String by = line.substring(byIndex + 3).trim();
-        if (desc.isEmpty()) throw new MeowException("The description of a deadline cannot be empty.");
-        if (by.isEmpty()) throw new MeowException("A deadline must have a '/by' time.");
+        if (desc.isEmpty()) {
+            throw new MeowException("The description of a deadline cannot be empty.");
+        }
+        if (by.isEmpty()) {
+            throw new MeowException("A deadline must have a '/by' time.");
+        }
         return new String[]{desc, by};
     }
 
     static String[] parseEventParts(String line) throws MeowException {
         int fromIndex = indexOfIgnoreCase(line, "/from");
         int toIndex = indexOfIgnoreCase(line, "/to");
-        if (line.length() <= 5 || fromIndex == -1 || toIndex == -1) throw new MeowException("The event command requires '/from' and '/to'.");
+        if (line.length() <= 5 || fromIndex == -1 || toIndex == -1) {
+            throw new MeowException("The event command requires '/from' and '/to'.");
+        }
         String desc = line.substring(5, fromIndex).trim();
         String from = line.substring(fromIndex + 5, toIndex).trim();
         String to = line.substring(toIndex + 3).trim();
-        if (desc.isEmpty()) throw new MeowException("The description of an event cannot be empty.");
-        if (from.isEmpty() || to.isEmpty()) throw new MeowException("An event must have both '/from' and '/to' values.");
+        if (desc.isEmpty()) {
+            throw new MeowException("The description of an event cannot be empty.");
+        }
+        if (from.isEmpty() || to.isEmpty()) {
+            throw new MeowException("An event must have both '/from' and '/to' values.");
+        }
         return new String[]{desc, from, to};
     }
 
@@ -301,22 +338,30 @@ class TaskCollection {
 
     void add(Task t) { tasks.add(t); }
     Task delete(int idx) throws MeowException {
-        if (idx < 0 || idx >= tasks.size()) throw new MeowException("This number does not align with the tasks you have");
+        if (idx < 0 || idx >= tasks.size()) {
+            throw new MeowException("This number does not align with the tasks you have");
+        }
         return tasks.remove(idx);
     }
     Task markDone(int idx) throws MeowException {
-        if (idx < 0 || idx >= tasks.size()) throw new MeowException("This number does not align with the tasks you have");
+        if (idx < 0 || idx >= tasks.size()) {
+            throw new MeowException("This number does not align with the tasks you have");
+        }
         Task t = tasks.get(idx);
         t.markDone();
         return t;
     }
     Task markUndone(int idx) throws MeowException {
-        if (idx < 0 || idx >= tasks.size()) throw new MeowException("This number does not align with the tasks you have");
+        if (idx < 0 || idx >= tasks.size()) {
+            throw new MeowException("This number does not align with the tasks you have");
+        }
         Task t = tasks.get(idx);
         t.markUndone();
         return t;
     }
-    List<Task> getAll() { return Collections.unmodifiableList(tasks); }
+    List<Task> getAll() {
+        return Collections.unmodifiableList(tasks);
+    }
     int size() { return tasks.size(); }
 
     public void clear() {
@@ -379,9 +424,6 @@ class DateTimeUtil {
             int year = Integer.parseInt(yearStr);
             int month = Integer.parseInt(monthStr);
             int day = Integer.parseInt(dayStr);
-
-            // LocalDate.of can throw DateTimeException for out-of-range fields;
-            // catch it and rethrow an IllegalArgumentException to keep the API consistent.
             LocalDate ld;
             try {
                 ld = LocalDate.of(year, month, day);
@@ -391,7 +433,6 @@ class DateTimeUtil {
             LocalDateTime dt = ld.atStartOfDay();
             return new LocalDateTimeHolder(dt, false);
         } catch (NumberFormatException nfe) {
-            // Let NumberFormatException bubble up for clearly non-numeric input (test expects this)
             throw nfe;
         }
     }
@@ -421,13 +462,19 @@ abstract class Task {
 
     public static Task deserialize(String line) throws MeowException {
         String[] parts = line.split("\\|", -1);
-        for (int i = 0; i < parts.length; i++) parts[i] = parts[i].trim();
-        if (parts.length < 3) throw new MeowException("Not enough fields in saved line");
+        for (int i = 0; i < parts.length; i++) {
+            parts[i] = parts[i].trim();
+        }
+        if (parts.length < 3) {
+            throw new MeowException("Not enough fields in saved line");
+        }
         String type = parts[0];
         String doneStr = parts[1];
         String desc = parts[2];
         boolean done;
-        if (!("0".equals(doneStr) || "1".equals(doneStr))) throw new MeowException("Invalid done flag (should be 0 or 1)");
+        if (!("0".equals(doneStr) || "1".equals(doneStr))) {
+            throw new MeowException("Invalid done flag (should be 0 or 1)");
+        }
         done = "1".equals(doneStr);
 
         if ("T".equalsIgnoreCase(type)) {
@@ -435,7 +482,9 @@ abstract class Task {
             if (done) t.markDone();
             return t;
         } else if ("D".equalsIgnoreCase(type)) {
-            if (parts.length < 4) throw new MeowException("Deadline missing time field");
+            if (parts.length < 4) {
+                throw new MeowException("Deadline missing time field");
+            }
             String serializedDate = parts[3];
             try {
                 LocalDateTimeHolder holder = DateTimeUtil.obtainValuesDate(serializedDate);
@@ -446,7 +495,9 @@ abstract class Task {
                 throw new MeowException("Invalid date format for deadline: " + serializedDate);
             }
         } else if ("E".equalsIgnoreCase(type)) {
-            if (parts.length < 5) throw new MeowException("Event missing from/to fields");
+            if (parts.length < 5) {
+                throw new MeowException("Event missing from/to fields");
+            }
             String fromSer = parts[3];
             String toSer = parts[4];
             try {
@@ -470,7 +521,9 @@ abstract class Task {
 }
 
 class ToDo extends Task {
-    public ToDo(String desc) { super(desc); }
+    public ToDo(String desc) {
+        super(desc);
+    }
 
     @Override
     public String serialize() {
