@@ -20,12 +20,13 @@ public class MeowTheCat {
             List<Task> loaded = store.load();
             tasks = new TaskCollection(loaded);
         } catch (IOException | MeowException e) {
+            // start with an empty collection on failure
             ui.showLoadingError(e.getMessage());
             tasks = new TaskCollection();
         }
 
         ui.showGreeting();
-
+        //Process command
         Scanner scanner = new Scanner(System.in);
         while (true) {
             String line = ui.readLine(scanner);
@@ -98,7 +99,14 @@ public class MeowTheCat {
 
         scanner.close();
     }
-
+    /**
+     * Safely save tasks to the FileStore variable and report any errors via UI.
+     *
+     * @param store backing file store
+     * @param tasks current tasks collection
+     * @param ui    UI to show save errors
+     * @param action string describing the action that triggered save
+     */
     private static void storeSafeSave(FileStore store, TaskCollection tasks, ConsoleUI ui, String action) {
         try {
             store.save(tasks.getAll());
@@ -110,31 +118,51 @@ public class MeowTheCat {
 
 
 
-
+/**
+ * Small console UI helper. Responsible for formatting and printing responses.
+ */
 class ConsoleUI {
+    /**
+     * Show that all tasks were cleared.
+     */
+
     void showCleared() {
         System.out.println("____________________________________________________________");
         System.out.println("All tasks have been cleared!");
         System.out.println("____________________________________________________________");
     }
+    /**
+     * Print greeting message.
+     */
     void showGreeting() {
         System.out.println("____________________________________________________________");
         System.out.println("Hello! I'm MeowTheCat");
         System.out.println("What can I do for you?");
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Read a line from the scanner and trim it or return null if no input.
+     *
+     * @param sc scanner to read from
+     * @return trimmed line or null
+     */
     String readLine(Scanner sc) {
         if (!sc.hasNextLine()) return null;
         return sc.nextLine().trim();
     }
-
+    /**
+     * Print goodbye message.
+     */
     void showGoodbye() {
         System.out.println("____________________________________________________________");
         System.out.println("Bye. Hope to see you again soon!");
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show the list of tasks.
+     *
+     * @param tasks list of tasks (read-only)
+     */
     void showTaskList(List<Task> tasks) {
         System.out.println("____________________________________________________________");
         System.out.println("Here are the tasks in your list:");
@@ -143,7 +171,12 @@ class ConsoleUI {
         }
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show that a task was added.
+     *
+     * @param t     the task
+     * @param total new total count
+     */
     void showAdded(Task t, int total) {
         System.out.println("____________________________________________________________");
         System.out.println("Got it. I've added this task:");
@@ -151,21 +184,34 @@ class ConsoleUI {
         System.out.println("Now you have " + total + " tasks in the list");
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show that a task was marked done.
+     *
+     * @param t the task
+     */
     void showMarked(Task t) {
         System.out.println("____________________________________________________________");
         System.out.println("Nice! I've marked this task as done:");
         System.out.println("  " + t);
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show that a task was marked undone.
+     *
+     * @param t the task
+     */
     void showUnmarked(Task t) {
         System.out.println("____________________________________________________________");
         System.out.println("OK, I've marked this task as not done yet:");
         System.out.println("  " + t);
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show deletion confirmation.
+     *
+     * @param t         the deleted task
+     * @param remaining number of tasks remaining
+     */
     void showDeleted(Task t, int remaining) {
         System.out.println("____________________________________________________________");
         System.out.println("Meow has Noted. I've removed this task:");
@@ -173,20 +219,33 @@ class ConsoleUI {
         System.out.println("Now you have " + remaining + " tasks in the list");
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show an error message.
+     *
+     * @param msg message to display
+     */
     void showError(String msg) {
         System.out.println("____________________________________________________________");
         System.out.println("MEOW OOPS!!! " + msg);
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show a file loading error and inform user that an empty list will be used.
+     *
+     * @param details error details
+     */
     void showLoadingError(String details) {
         System.out.println("____________________________________________________________");
         System.out.println("MEOW OOPS!!! Could not read save file: " + details);
         System.out.println("Starting with an empty task list.");
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show save error message.
+     *
+     * @param action  action that triggered save
+     * @param details error details
+     */
     void showSaveError(String action, String details) {
         System.out.println("____________________________________________________________");
         System.out.println("MEOW OOPS!!! Could not save after " + action + ": " + details);
@@ -196,13 +255,22 @@ class ConsoleUI {
 
 
 
+/**
+ * Simple file-backed store for tasks. Responsible only for reading/writing the
+ * serialized lines.
+ */
 class FileStore {
     private final Path path;
 
     FileStore(Path path) {
         this.path = path;
     }
-
+    /**
+     * Load tasks from the file. Returns empty list if file does not exist.
+     *
+     * @return deserialized task list
+     * @throws IOException or MeowException
+     */
     List<Task> load() throws IOException, MeowException {
         List<Task> tasks = new ArrayList<>();
         if (!Files.exists(path)) return tasks;
@@ -216,7 +284,12 @@ class FileStore {
         }
         return tasks;
     }
-
+    /**
+     * Save tasks to local directory and replaces the existing file if it exists
+     *
+     * @param tasks tasks to save
+     * @throws IOException
+     */
     void save(List<Task> tasks) throws IOException {
         try (BufferedWriter bw = Files.newBufferedWriter(
                 path, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
@@ -229,9 +302,15 @@ class FileStore {
 }
 
 
-
+/**
+ *  Parses user commands
+ */
 class CommandParser {
-
+    /**
+     * Identify the command type from the input line.
+     * @param line user input line
+     * @return a command as a string (e.g. "todo", "list", "bye")
+     */
     static String commandType(String line) {
         if (line == null || line.trim().isEmpty()) return "";
         String lower = line.trim().toLowerCase();
@@ -246,7 +325,14 @@ class CommandParser {
         if (lower.startsWith("event")) return "event";
         return "unknown";
     }
-
+    /**
+     * Parse index from a command
+     *
+     * @param line full command
+     * @param cmd  command token
+     * @return index
+     * @throws MeowException
+     */
     static int parseIndex(String line, String cmd) throws MeowException {
         try {
             String numStr = line.substring(cmd.length()).trim();
