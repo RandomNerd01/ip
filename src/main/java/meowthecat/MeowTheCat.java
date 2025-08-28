@@ -93,7 +93,7 @@ public class MeowTheCat {
                     storeSafeSave(store, tasks, ui, "clearing all tasks");
                     ui.showCleared();
                 }
-                 else {
+                else {
                     throw new meowthecat.MeowException("MEOW!! MEOW is Confused!!");
                 }
             } catch (meowthecat.MeowException me) {
@@ -128,7 +128,6 @@ public class MeowTheCat {
  * Small console UI helper. Responsible for formatting and printing responses.
  */
 class ConsoleUI {
-
 
 
     /**
