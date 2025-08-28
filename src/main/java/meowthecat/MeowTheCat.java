@@ -20,12 +20,13 @@ public class MeowTheCat {
             List<Task> loaded = store.load();
             tasks = new TaskCollection(loaded);
         } catch (IOException | MeowException e) {
+            // start with an empty collection on failure
             ui.showLoadingError(e.getMessage());
             tasks = new TaskCollection();
         }
 
         ui.showGreeting();
-
+        //Process command
         Scanner scanner = new Scanner(System.in);
         while (true) {
             String line = ui.readLine(scanner);
@@ -86,7 +87,11 @@ public class MeowTheCat {
                     storeSafeSave(store, tasks, ui, "clearing all tasks");
                     ui.showCleared();
                 }
-                else {
+                else if ("find".equalsIgnoreCase(cmd)) {
+                    String keyword = CommandParser.parseFindQuery(line);
+                    List<Task> matches = tasks.find(keyword);
+                    ui.showFind(matches);
+                } else {
                     throw new MeowException("MEOW!! MEOW is Confused!!");
                 }
             } catch (MeowException me) {
@@ -98,7 +103,14 @@ public class MeowTheCat {
 
         scanner.close();
     }
-
+    /**
+     * Safely save tasks to the FileStore variable and report any errors via UI.
+     *
+     * @param store backing file store
+     * @param tasks current tasks collection
+     * @param ui    UI to show save errors
+     * @param action string describing the action that triggered save
+     */
     private static void storeSafeSave(FileStore store, TaskCollection tasks, ConsoleUI ui, String action) {
         try {
             store.save(tasks.getAll());
@@ -110,31 +122,65 @@ public class MeowTheCat {
 
 
 
-
+/**
+ * Small console UI helper. Responsible for formatting and printing responses.
+ */
 class ConsoleUI {
+    /**
+     * Show matching tasks for a find query.
+     *
+     * @param matches list of matching tasks
+     */
+    void showFind(List<Task> matches) {
+        System.out.println("____________________________________________________________");
+        System.out.println("Here are the matching tasks in your list:");
+        for (int i = 0; i < matches.size(); i++) {
+            System.out.println((i + 1) + "." + matches.get(i));
+        }
+        System.out.println("____________________________________________________________");
+    }
+
+    /**
+     * Show that all tasks were cleared.
+     */
+
     void showCleared() {
         System.out.println("____________________________________________________________");
         System.out.println("All tasks have been cleared!");
         System.out.println("____________________________________________________________");
     }
+    /**
+     * Print greeting message.
+     */
     void showGreeting() {
         System.out.println("____________________________________________________________");
         System.out.println("Hello! I'm MeowTheCat");
         System.out.println("What can I do for you?");
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Read a line from the scanner and trim it or return null if no input.
+     *
+     * @param sc scanner to read from
+     * @return trimmed line or null
+     */
     String readLine(Scanner sc) {
         if (!sc.hasNextLine()) return null;
         return sc.nextLine().trim();
     }
-
+    /**
+     * Print goodbye message.
+     */
     void showGoodbye() {
         System.out.println("____________________________________________________________");
         System.out.println("Bye. Hope to see you again soon!");
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show the list of tasks.
+     *
+     * @param tasks list of tasks (read-only)
+     */
     void showTaskList(List<Task> tasks) {
         System.out.println("____________________________________________________________");
         System.out.println("Here are the tasks in your list:");
@@ -143,7 +189,12 @@ class ConsoleUI {
         }
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show that a task was added.
+     *
+     * @param t     the task
+     * @param total new total count
+     */
     void showAdded(Task t, int total) {
         System.out.println("____________________________________________________________");
         System.out.println("Got it. I've added this task:");
@@ -151,21 +202,34 @@ class ConsoleUI {
         System.out.println("Now you have " + total + " tasks in the list");
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show that a task was marked done.
+     *
+     * @param t the task
+     */
     void showMarked(Task t) {
         System.out.println("____________________________________________________________");
         System.out.println("Nice! I've marked this task as done:");
         System.out.println("  " + t);
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show that a task was marked undone.
+     *
+     * @param t the task
+     */
     void showUnmarked(Task t) {
         System.out.println("____________________________________________________________");
         System.out.println("OK, I've marked this task as not done yet:");
         System.out.println("  " + t);
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show deletion confirmation.
+     *
+     * @param t         the deleted task
+     * @param remaining number of tasks remaining
+     */
     void showDeleted(Task t, int remaining) {
         System.out.println("____________________________________________________________");
         System.out.println("Meow has Noted. I've removed this task:");
@@ -173,20 +237,33 @@ class ConsoleUI {
         System.out.println("Now you have " + remaining + " tasks in the list");
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show an error message.
+     *
+     * @param msg message to display
+     */
     void showError(String msg) {
         System.out.println("____________________________________________________________");
         System.out.println("MEOW OOPS!!! " + msg);
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show a file loading error and inform user that an empty list will be used.
+     *
+     * @param details error details
+     */
     void showLoadingError(String details) {
         System.out.println("____________________________________________________________");
         System.out.println("MEOW OOPS!!! Could not read save file: " + details);
         System.out.println("Starting with an empty task list.");
         System.out.println("____________________________________________________________");
     }
-
+    /**
+     * Show save error message.
+     *
+     * @param action  action that triggered save
+     * @param details error details
+     */
     void showSaveError(String action, String details) {
         System.out.println("____________________________________________________________");
         System.out.println("MEOW OOPS!!! Could not save after " + action + ": " + details);
@@ -196,13 +273,22 @@ class ConsoleUI {
 
 
 
+/**
+ * Simple file-backed store for tasks. Responsible only for reading/writing the
+ * serialized lines.
+ */
 class FileStore {
     private final Path path;
 
     FileStore(Path path) {
         this.path = path;
     }
-
+    /**
+     * Load tasks from the file. Returns empty list if file does not exist.
+     *
+     * @return deserialized task list
+     * @throws IOException or MeowException
+     */
     List<Task> load() throws IOException, MeowException {
         List<Task> tasks = new ArrayList<>();
         if (!Files.exists(path)) return tasks;
@@ -216,7 +302,12 @@ class FileStore {
         }
         return tasks;
     }
-
+    /**
+     * Save tasks to local directory and replaces the existing file if it exists
+     *
+     * @param tasks tasks to save
+     * @throws IOException
+     */
     void save(List<Task> tasks) throws IOException {
         try (BufferedWriter bw = Files.newBufferedWriter(
                 path, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
@@ -229,9 +320,15 @@ class FileStore {
 }
 
 
-
+/**
+ *  Parses user commands
+ */
 class CommandParser {
-
+    /**
+     * Identify the command type from the input line.
+     * @param line user input line
+     * @return a command as a string (e.g. "todo", "list", "bye")
+     */
     static String commandType(String line) {
         if (line == null || line.trim().isEmpty()) return "";
         String lower = line.trim().toLowerCase();
@@ -244,9 +341,31 @@ class CommandParser {
         if (lower.startsWith("todo")) return "todo";
         if (lower.startsWith("deadline")) return "deadline";
         if (lower.startsWith("event")) return "event";
+        if (lower.startsWith("find")) return "find";
         return "unknown";
     }
-
+    /**
+     * Extract the query string for a find command.
+     *
+     * @param line full command (e.g. "find book")
+     * @return trimmed search keyword
+     * @throws MeowException if the query is empty
+     */
+    static String parseFindQuery(String line) throws MeowException {
+        String rest = line.length() > 4 ? line.substring(4).trim() : "";
+        if (rest.isEmpty()) {
+            throw new MeowException("The find command requires a non-empty keyword.");
+        }
+        return rest;
+    }
+    /**
+     * Parse index from a command
+     *
+     * @param line full command
+     * @param cmd  command token
+     * @return index
+     * @throws MeowException
+     */
     static int parseIndex(String line, String cmd) throws MeowException {
         try {
             String numStr = line.substring(cmd.length()).trim();
@@ -294,10 +413,29 @@ class CommandParser {
 
 
 class TaskCollection {
+
     private final List<Task> tasks;
 
     TaskCollection() { this.tasks = new ArrayList<>(); }
     TaskCollection(List<Task> initial) { this.tasks = new ArrayList<>(initial); }
+
+    /**
+     * Find tasks whose description contains the given keyword (case-insensitive).
+     *
+     * @param keyword search keyword (non-null)
+     * @return list of matching tasks in original order
+     */
+    List<Task> find(String keyword) {
+        Objects.requireNonNull(keyword, "keyword must not be null");
+        String lower = keyword.toLowerCase(Locale.ENGLISH);
+        List<Task> results = new ArrayList<>();
+        for (Task t : tasks) {
+            if (t.description.toLowerCase(Locale.ENGLISH).contains(lower)) {
+                results.add(t);
+            }
+        }
+        return results;
+    }
 
     void add(Task t) { tasks.add(t); }
     Task delete(int idx) throws MeowException {
