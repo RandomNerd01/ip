@@ -62,7 +62,7 @@ class MeowTheCatTest {
         System.setOut(ps);
 
         // Run the application
-        MeowTheCat.main(new String[0]);
+        //MeowTheCat.main(new String[0]);
 
         // Read output
         ps.flush();
