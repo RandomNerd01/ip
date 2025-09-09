@@ -27,14 +27,16 @@ public class MainWindow extends AnchorPane {
     @FXML
     public void initialize() {
         scrollPane.vvalueProperty().bind(dialogContainer.heightProperty());
-        System.out.println("Classpath root -> " + getClass().getResource("/"));
-        System.out.println("Check cat.png -> " + getClass().getResource("/cat.PNG"));
-        System.out.println("Check cat.png -> " + getClass().getResource("/cat1.PNG"));
-        System.out.println("Check /view/DialogBox.fxml -> " + getClass().getResource("/view/DialogBox.fxml"));
-        System.out.println("Check /view/MainWindow.fxml -> " + getClass().getResource("/view/MainWindow.fxml"));
+
+        // ensure FXML Injected properly
+        assert scrollPane != null : "scrollPane should be injected";
+        assert dialogContainer != null : "dialogContainer should be injected";
 
         userImage = new Image(this.getClass().getResourceAsStream("/cat1.PNG"));
         meowImage = new Image(this.getClass().getResourceAsStream("/cat.PNG"));
+
+        assert userImage != null : "userImage should be present";
+        assert meowImage != null : "MeowTheCat's image should be present";
     }
 
     /** Injects the Duke instance */
