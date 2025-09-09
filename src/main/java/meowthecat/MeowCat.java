@@ -17,6 +17,8 @@ public class MeowCat {
 
     public MeowCat() {
         this.store = new FileStore(Paths.get("SaveFile.txt"));
+        // store should be there
+        assert this.store != null : "FileStore should not be null after construction";
         TaskCollection loadedTasks;
         try {
             List<Task> loaded = store.load();
@@ -24,6 +26,8 @@ public class MeowCat {
         } catch (IOException | MeowException e) {
             // on failure, start empty (GUI should still work)
             loadedTasks = new TaskCollection();
+            // sanity: tasks collection must be non-null
+            assert loadedTasks != null : "loadedTasks must not be null";
         }
         this.tasks = loadedTasks;
     }
@@ -36,6 +40,8 @@ public class MeowCat {
      * @return response string to display in GUI
      */
     public String getResponse(String input) {
+        // tasks should be non-null
+        assert tasks != null : "tasks must not be null when handling input";
         try {
             if (input == null) {
                 return "MEOW OOPS!!! No input provided.";
