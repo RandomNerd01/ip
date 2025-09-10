@@ -18,8 +18,8 @@ public class MeowCat {
 
     public MeowCat() {
         this.store = new FileStore(Paths.get("SaveFile.txt"));
+        // store should be there
         assert this.store != null : "FileStore should not be null after construction";
-
         TaskCollection loadedTasks;
         try {
             List<Task> loaded = store.load();
@@ -27,6 +27,8 @@ public class MeowCat {
         } catch (IOException | MeowException e) {
             // on failure, start empty (GUI should still work)
             loadedTasks = new TaskCollection();
+            // sanity: tasks collection must be non-null
+            assert loadedTasks != null : "loadedTasks must not be null";
         }
 
         assert loadedTasks != null : "loadedTasks must not be null";
@@ -41,18 +43,10 @@ public class MeowCat {
      * @return response string to display in GUI
      */
     public String getResponse(String input) {
-        // guard - tasks must exist for the happy path
+        // tasks should be non-null
         assert tasks != null : "tasks must not be null when handling input";
-
-        if (input == null) {
-            return borderedMessage("MEOW OOPS!!! No input provided.");
-        }
-        String line = input.trim();
-        if (line.isEmpty()) {
-            return borderedMessage("MEOW OOPS!!! No input provided.");
-        }
-
         try {
+            String line = input.trim();
             String cmd = CommandParser.commandType(line);
 
             switch (cmd) {
