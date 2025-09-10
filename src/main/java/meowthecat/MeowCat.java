@@ -87,13 +87,17 @@ public class MeowCat {
        ------------------------- */
 
     private String handleList() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Here are the tasks in your list:").append(NEWLINE);
         List<Task> all = tasks.getAll();
-        for (int i = 0; i < all.size(); i++) {
-            sb.append((i + 1)).append(".").append(all.get(i)).append(NEWLINE);
+        // Stream-based construction of numbered task list (one small Streams change)
+        String body = IntStream.range(0, all.size())
+            .mapToObj(i -> (i + 1) + "." + all.get(i))
+            .collect(Collectors.joining(NEWLINE));
+        if (body.isEmpty()) {
+            body = "Here are the tasks in your list:" + NEWLINE + "(no tasks)";
+        } else {
+            body = "Here are the tasks in your list:" + NEWLINE + body;
         }
-        return borderedMessage(sb.toString());
+        return borderedMessage(body);
     }
 
     private String handleMark(String line) throws MeowException {
