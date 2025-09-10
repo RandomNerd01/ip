@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+
 /**
  * Small wrapper that exposes MeowTheCat-like behavior as a single-step
  * request/response API for the GUI. It keeps a TaskCollection and FileStore
@@ -22,6 +23,7 @@ public class MeowCat {
         this.store = new FileStore(Paths.get("SaveFile.txt"));
         // store should be there
         assert this.store != null : "FileStore should not be null after construction";
+
         TaskCollection loadedTasks;
         try {
             List<Task> loaded = store.load();
@@ -44,7 +46,7 @@ public class MeowCat {
      * @param input user input
      * @return response string to display in GUI
      */
-     public String getResponse(String input) {
+ public String getResponse(String input) {
         // tasks should be non-null
         assert tasks != null : "tasks must not be null when handling input";
         try {
