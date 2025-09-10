@@ -3,6 +3,8 @@ package meowthecat;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Small wrapper that exposes MeowTheCat-like behavior as a single-step
