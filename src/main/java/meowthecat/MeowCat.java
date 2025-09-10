@@ -44,7 +44,7 @@ public class MeowCat {
      * @param input user input
      * @return response string to display in GUI
      */
-    public String getResponse(String input) {
+     public String getResponse(String input) {
         // tasks should be non-null
         assert tasks != null : "tasks must not be null when handling input";
         try {
