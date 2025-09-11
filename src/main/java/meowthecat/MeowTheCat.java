@@ -383,6 +383,9 @@ class CommandParser {
         if (lower.startsWith("find")) {
             return "find";
         }
+        if (lower.startsWith("undo")) {
+            return "undo";
+        }
         return "unknown";
     }
 
@@ -558,6 +561,11 @@ class LocalDateTimeHolder {
         this.dateTime = dt;
         this.timeIncluded = timeIncluded;
     }
+
+    // Return a copy of LocalDateTime object
+    public LocalDateTimeHolder copy() {
+        return new LocalDateTimeHolder(this.dateTime, this.timeIncluded);
+    }
 }
 
 
@@ -648,6 +656,8 @@ abstract class Task {
 
     public abstract String serialize();
 
+    public abstract Task copy();
+
     public static Task deserialize(String line) throws MeowException {
         String[] parts = line.split("\\|", -1);
         for (int i = 0; i < parts.length; i++) {
@@ -726,6 +736,14 @@ class ToDo extends Task {
     public String serialize() {
         return String.join(" | ", "T", (isDone ? "1" : "0"), description);
     }
+    @Override
+    public Task copy() {
+        ToDo t = new ToDo(this.description);
+        if (this.isDone) {
+            t.markDone();
+        }
+        return t;
+    }
 
     @Override
     public String toString() {
@@ -745,6 +763,16 @@ class Deadline extends Task {
     public String serialize() {
         String iso = byHolder.dateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
         return String.join(" | ", "D", (isDone ? "1" : "0"), description, iso);
+    }
+
+    @Override
+    public Task copy() {
+        LocalDateTimeHolder holderCopy = (byHolder != null) ? byHolder.copy() : null;
+        Deadline d = new Deadline(this.description, holderCopy);
+        if (this.isDone) {
+            d.markDone();
+        }
+        return d;
     }
 
     @Override
@@ -769,6 +797,17 @@ class Event extends Task {
         String fromIso = fromHolder.dateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
         String toIso = toHolder.dateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
         return String.join(" | ", "E", (isDone ? "1" : "0"), description, fromIso, toIso);
+    }
+
+    @Override
+    public Task copy() {
+        LocalDateTimeHolder fromCopy = (fromHolder != null) ? fromHolder.copy() : null;
+        LocalDateTimeHolder toCopy = (toHolder != null) ? toHolder.copy() : null;
+        Event e = new Event(this.description, fromCopy, toCopy);
+        if (this.isDone) {
+            e.markDone();
+        }
+        return e;
     }
 
     @Override

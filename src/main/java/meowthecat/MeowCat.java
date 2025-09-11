@@ -17,7 +17,8 @@ public class MeowCat {
 
     private final TaskCollection tasks;
     private final FileStore store;
-
+    private List<Task> previousState = null;
+    private String lastActionDescription = null;
     public MeowCat() {
         this.store = new FileStore(Paths.get("SaveFile.txt"));
         assert this.store != null : "FileStore should not be null after construction";
@@ -78,6 +79,8 @@ public class MeowCat {
                 return handleClear();
             case "find":
                 return handleFind(line);
+            case "undo":
+                return handleUndo();
             default:
                 throw new MeowException("MEOW!! MEOW is Confused!!");
             }
@@ -108,6 +111,7 @@ public class MeowCat {
 
     private String handleMark(String line) throws MeowException {
         int idx = CommandParser.parseIndex(line, "mark");
+        snapshotState("mark " + idx);
         Task t = tasks.markDone(idx);
         String saveErr = safeSave("mark");
         String body = "Nice! I've marked this task as done:" + NEWLINE + "  " + t;
@@ -116,6 +120,7 @@ public class MeowCat {
 
     private String handleUnmark(String line) throws MeowException {
         int idx = CommandParser.parseIndex(line, "unmark");
+        snapshotState("unmark " + idx);
         Task t = tasks.markUndone(idx);
         String saveErr = safeSave("unmark");
         String body = "OK, I've marked this task as not done yet:" + NEWLINE + "  " + t;
@@ -124,6 +129,7 @@ public class MeowCat {
 
     private String handleDelete(String line) throws MeowException {
         int idx = CommandParser.parseIndex(line, "delete");
+        snapshotState("delete " + idx);
         Task removed = tasks.delete(idx);
         String saveErr = safeSave("delete");
         StringBuilder sb = new StringBuilder();
@@ -135,6 +141,7 @@ public class MeowCat {
 
     private String handleTodo(String line) throws MeowException {
         String desc = CommandParser.parseTodoDesc(line);
+        snapshotState("add-todo");
         Task t = new ToDo(desc);
         tasks.add(t);
         String saveErr = safeSave("add-todo");
@@ -148,6 +155,7 @@ public class MeowCat {
         String desc = parts[0];
         String dateRaw = parts[1];
         LocalDateTimeHolder holder = DateTimeUtil.obtainValuesDate(dateRaw);
+        snapshotState("add-deadline");
         Task t = new Deadline(desc, holder);
         tasks.add(t);
         String saveErr = safeSave("add-deadline");
@@ -163,6 +171,7 @@ public class MeowCat {
         String toRaw = parts[2];
         LocalDateTimeHolder fromH = DateTimeUtil.obtainValuesDate(fromRaw);
         LocalDateTimeHolder toH = DateTimeUtil.obtainValuesDate(toRaw);
+        snapshotState("add-event");
         Task t = new Event(desc, fromH, toH);
         tasks.add(t);
         String saveErr = safeSave("add-event");
@@ -172,6 +181,7 @@ public class MeowCat {
     }
 
     private String handleClear() {
+        snapshotState("clear");
         tasks.clear();
         String saveErr = safeSave("clearing all tasks");
         String body = "All tasks have been cleared!";
@@ -206,6 +216,47 @@ public class MeowCat {
         return borderedMessage(sb.toString());
     }
 
+    private String handleUndo() {
+        if (previousState == null) {
+            return borderedMessage("Nothing to undo.");
+        }
+
+        List<Task> toRestore = deepCopyTasks(previousState);
+
+        tasks.clear();
+        for (Task t : toRestore) {
+            tasks.add(t);
+        }
+
+        String saveErr = safeSave("undo (" + lastActionDescription + ")");
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Undid last action: ").append(lastActionDescription).append(NEWLINE);
+        sb.append("Current task list:").append(NEWLINE);
+        List<Task> all = tasks.getAll();
+        for (int i = 0; i < all.size(); i++) {
+            sb.append((i + 1)).append(".").append(all.get(i)).append(NEWLINE);
+        }
+
+        // single-level undo only
+        previousState = null;
+        lastActionDescription = null;
+
+        if (saveErr != null) {
+            sb.append(saveErr).append(NEWLINE);
+        }
+
+        return borderedMessage(sb.toString());
+    }
+
+    private void snapshotState(String actionDescription) {
+        this.previousState = deepCopyTasks(tasks.getAll());
+        this.lastActionDescription = actionDescription;
+    }
+
+    private List<Task> deepCopyTasks(List<Task> src) {
+        return src.stream().map(Task::copy).collect(Collectors.toList());
+    }
     /**
      * Save and return an error string if saving failed, otherwise null.
      */
