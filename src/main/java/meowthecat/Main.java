@@ -12,16 +12,22 @@ import javafx.stage.Stage;
  */
 public class Main extends Application {
 
-    private MeowCat meow = new MeowCat();
+    private final MeowCat meow = new MeowCat();
 
     @Override
     public void start(Stage stage) {
         try {
             FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("/view/MainWindow.fxml"));
             AnchorPane ap = fxmlLoader.load();
+            assert ap != null : "MainWindow FXML root AnchorPane must not be null";
+
             Scene scene = new Scene(ap);
             stage.setScene(scene);
-            fxmlLoader.<MainWindow>getController().setMeow(meow);
+
+            MainWindow controller = fxmlLoader.getController();
+            assert controller != null : "MainWindow controller must be available after loading FXML";
+            controller.setMeow(meow);
+
             stage.show();
         } catch (IOException e) {
             e.printStackTrace();
