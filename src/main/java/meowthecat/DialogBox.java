@@ -33,6 +33,17 @@ public class DialogBox extends HBox {
             e.printStackTrace();
             System.out.println("Dialog.fxml");
         }
+        assert text != null : "Dialog text should not be null";
+        assert img != null : "Image for DialogBox must not be null";
+
+        assert dialog != null : "dialog Label should have been injected by FXML";
+        assert displayPicture != null : "displayPicture ImageView should have been injected by FXML";
+
+        // clear, explicit assumptions about injected controls & inputs
+        assert text != null : "Dialog text should not be null";
+        assert img != null : "Image for DialogBox must not be null";
+        assert dialog != null : "dialog Label should have been injected by FXML";
+        assert displayPicture != null : "displayPicture ImageView should have been injected by FXML";
 
         // clear, explicit assumptions about injected controls & inputs
         assert text != null : "Dialog text should not be null";

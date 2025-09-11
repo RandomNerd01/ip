@@ -32,17 +32,15 @@ public class MainWindow extends AnchorPane {
 
     @FXML
     public void initialize() {
-        // ensure FXML was injected correctly
+        // ensure FXML Injected properly
         assert scrollPane != null : "scrollPane should be injected";
         assert dialogContainer != null : "dialogContainer should be injected";
 
-        scrollPane.vvalueProperty().bind(dialogContainer.heightProperty());
-
-        userImage = loadImageFromResource("/cat1.PNG");
-        meowImage = loadImageFromResource("/cat.PNG");
+        userImage = new Image(this.getClass().getResourceAsStream("/cat1.PNG"));
+        meowImage = new Image(this.getClass().getResourceAsStream("/cat.PNG"));
 
         assert userImage != null : "userImage should be present";
-        assert meowImage != null : "meowImage should be present";
+        assert meowImage != null : "MeowTheCat's image should be present";
     }
 
     /** Injects the MeowCat instance */
