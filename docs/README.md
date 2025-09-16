@@ -1,7 +1,5 @@
 # MeowTheCat — User Guide 🐱
 
-**Chatbot name:** **MeowTheCat**
-
 ## Overview
 
 MeowTheCat is a simple task chatbot for adding/listing/managing **todos**, **deadlines**, and **events**. This guide only explains how to *use* the bot.
