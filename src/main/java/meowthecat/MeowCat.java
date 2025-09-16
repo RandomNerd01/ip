@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-
 /**
  * Small wrapper that exposes MeowTheCat-like behavior as a single-step
  * request/response API for the GUI. It keeps a TaskCollection and FileStore
@@ -20,9 +19,13 @@ public class MeowCat {
     private final FileStore store;
     private List<Task> previousState = null;
     private String lastActionDescription = null;
+    /**
+     * Constructs a new MeowCat instance.
+     * Initializes the file store and attempts to load saved tasks from disk.
+     * If loading fails due to an I/O or parsing error, starts with an empty task list.
+     */
     public MeowCat() {
         this.store = new FileStore(Paths.get("SaveFile.txt"));
-        // store should be there
         assert this.store != null : "FileStore should not be null after construction";
 
         TaskCollection loadedTasks;
@@ -32,8 +35,6 @@ public class MeowCat {
         } catch (IOException | MeowException e) {
             // on failure, start empty (GUI should still work)
             loadedTasks = new TaskCollection();
-            // sanity: tasks collection must be non-null
-            assert loadedTasks != null : "loadedTasks must not be null";
         }
 
         assert loadedTasks != null : "loadedTasks must not be null";
@@ -47,11 +48,19 @@ public class MeowCat {
      * @param input user input
      * @return response string to display in GUI
      */
- public String getResponse(String input) {
-        // tasks should be non-null
+    public String getResponse(String input) {
+        // guard - tasks must exist for the happy path
         assert tasks != null : "tasks must not be null when handling input";
+
+        if (input == null) {
+            return borderedMessage("MEOW OOPS!!! No input provided.");
+        }
+        String line = input.trim();
+        if (line.isEmpty()) {
+            return borderedMessage("MEOW OOPS!!! No input provided.");
+        }
+
         try {
-            String line = input.trim();
             String cmd = CommandParser.commandType(line);
 
             switch (cmd) {

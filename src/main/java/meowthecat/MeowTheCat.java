@@ -1,116 +1,194 @@
 package meowthecat;
-// CHECKSTYLE:OFF: AvoidStarImport
+
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
-// CHECKSTYLE:ON: AvoidStarImport
-// CHECKSTYLE:OFF: MissingJavadocType
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Scanner;
+
+/**
+ * Entry point for the MeowTheCat task manager CLI app.
+ * Initializes UI, storage, and task collection, loads saved tasks,
+ * and runs the main command loop until exit.
+ * Supports commands like add, delete, list, mark, find, and more.
+ */
 public class MeowTheCat {
-    // CHECKSTYLE:ON: MissingJavadocType
+
+
     public static void main(String[] args) {
         ConsoleUI ui = new ConsoleUI();
         FileStore store = new FileStore(Paths.get("SaveFile.txt"));
-        TaskCollection tasks;
 
-
-        try {
-            List<Task> loaded = store.load();
-            tasks = new TaskCollection(loaded);
-        } catch (IOException | MeowException e) {
-            // start with an empty collection on failure
-            ui.showLoadingError(e.getMessage());
-            tasks = new TaskCollection();
-        }
+        TaskCollection tasks = loadTasks(store, ui);
 
         ui.showGreeting();
-        //Process command
-        Scanner scanner = new Scanner(System.in);
-        while (true) {
-            String line = ui.readLine(scanner);
-            if (line == null) {
-                break;
-            }
-            try {
-                String cmd = CommandParser.commandType(line);
-                if ("bye".equalsIgnoreCase(cmd)) {
-                    ui.showGoodbye();
-                    break;
-                } else if ("list".equalsIgnoreCase(cmd)) {
-                    ui.showTaskList(tasks.getAll());
-                } else if ("mark".equalsIgnoreCase(cmd)) {
-                    int idx = CommandParser.parseIndex(line, "mark");
-                    Task t = tasks.markDone(idx);
-                    storeSafeSave(store, tasks, ui, "mark");
-                    ui.showMarked(t);
-                } else if ("unmark".equalsIgnoreCase(cmd)) {
-                    int idx = CommandParser.parseIndex(line, "unmark");
-                    Task t = tasks.markUndone(idx);
-                    storeSafeSave(store, tasks, ui, "unmark");
-                    ui.showUnmarked(t);
-                } else if ("delete".equalsIgnoreCase(cmd)) {
-                    int idx = CommandParser.parseIndex(line, "delete");
-                    Task removed = tasks.delete(idx);
-                    storeSafeSave(store, tasks, ui, "delete");
-                    ui.showDeleted(removed, tasks.size());
-                } else if ("todo".equalsIgnoreCase(cmd)) {
-                    String desc = CommandParser.parseTodoDesc(line);
-                    Task t = new ToDo(desc);
-                    tasks.add(t);
-                    storeSafeSave(store, tasks, ui, "add-todo");
-                    ui.showAdded(t, tasks.size());
-                } else if ("deadline".equalsIgnoreCase(cmd)) {
-                    String[] parts = CommandParser.parseDeadlineParts(line);
-                    String desc = parts[0];
-                    String dateRaw = parts[1];
-                    LocalDateTimeHolder holder = DateTimeUtil.obtainValuesDate(dateRaw);
-                    Task t = new Deadline(desc, holder);
-                    tasks.add(t);
-                    storeSafeSave(store, tasks, ui, "add-deadline");
-                    ui.showAdded(t, tasks.size());
-                } else if ("event".equalsIgnoreCase(cmd)) {
-                    String[] parts = CommandParser.parseEventParts(line);
-                    String desc = parts[0];
-                    String fromRaw = parts[1];
-                    String toRaw = parts[2];
-                    LocalDateTimeHolder fromH = DateTimeUtil.obtainValuesDate(fromRaw);
-                    LocalDateTimeHolder toH = DateTimeUtil.obtainValuesDate(toRaw);
-                    Task t = new Event(desc, fromH, toH);
-                    tasks.add(t);
-                    storeSafeSave(store, tasks, ui, "add-event");
-                    ui.showAdded(t, tasks.size());
-                } else if ("clear".equalsIgnoreCase(cmd)) {
-                    tasks.clear();
-                    storeSafeSave(store, tasks, ui, "clearing all tasks");
-                    ui.showCleared();
-                } else if ("find".equalsIgnoreCase(cmd)) {
-                    String keyword = CommandParser.parseFindQuery(line);
-                    List<Task> matches = tasks.find(keyword);
-                    ui.showFind(matches);
-                } else {
-                    throw new MeowException("MEOW!! MEOW is Confused!!");
-                }
-            } catch (MeowException me) {
-                ui.showError(me.getMessage());
-            } catch (Exception e) {
-                ui.showError("Something went wrong: " + e.getMessage());
-            }
-        }
-
-        scanner.close();
+        runCommandLoop(ui, store, tasks);
     }
 
+    private static TaskCollection loadTasks(FileStore store, ConsoleUI ui) {
+        try {
+            List<Task> loaded = store.load();
+            return new TaskCollection(loaded);
+        } catch (IOException | MeowException e) {
+            ui.showLoadingError(e.getMessage());
+            return new TaskCollection();
+        }
+    }
+
+    private static void runCommandLoop(ConsoleUI ui, FileStore store, TaskCollection tasks) {
+        Scanner scanner = new Scanner(System.in);
+        try {
+            while (true) {
+                String line = ui.readLine(scanner);
+                if (line == null) {
+                    break;
+                }
+                boolean keepGoing = processInput(line, ui, store, tasks);
+                if (!keepGoing) {
+                    break;
+                }
+            }
+        } finally {
+            scanner.close();
+        }
+    }
+
+    //Returns false when caller should exit (i.e., "bye")
+    private static boolean processInput(String line, ConsoleUI ui, FileStore store, TaskCollection tasks) {
+        try {
+            String cmd = CommandParser.commandType(line);
+            switch (cmd.toLowerCase(Locale.ROOT)) {
+            case "bye":
+                ui.showGoodbye();
+                return false;
+            case "list":
+                ui.showTaskList(tasks.getAll());
+                break;
+            case "mark":
+                handleMark(line, ui, store, tasks);
+                break;
+            case "unmark":
+                handleUnmark(line, ui, store, tasks);
+                break;
+            case "delete":
+                handleDelete(line, ui, store, tasks);
+                break;
+            case "todo":
+                handleAddTodo(line, ui, store, tasks);
+                break;
+            case "deadline":
+                handleAddDeadline(line, ui, store, tasks);
+                break;
+            case "event":
+                handleAddEvent(line, ui, store, tasks);
+                break;
+            case "clear":
+                tasks.clear();
+                storeSafeSave(store, tasks, ui, "clearing all tasks");
+                ui.showCleared();
+                break;
+            case "find":
+                handleFind(line, ui, tasks);
+                break;
+            default:
+                throw new MeowException("MEOW!! MEOW is Confused!!");
+            }
+        } catch (MeowException me) {
+            ui.showError(me.getMessage());
+        } catch (Exception e) {
+            ui.showError("Something went wrong: " + e.getMessage());
+        }
+        return true;
+    }
+
+
+    private static void handleMark(String line, ConsoleUI ui, FileStore store, TaskCollection tasks)
+            throws MeowException {
+        int idx = CommandParser.parseIndex(line, "mark");
+        Task t = tasks.markDone(idx);
+        storeSafeSave(store, tasks, ui, "mark");
+        ui.showMarked(t);
+    }
+
+    private static void handleUnmark(String line, ConsoleUI ui, FileStore store, TaskCollection tasks)
+            throws MeowException {
+        int idx = CommandParser.parseIndex(line, "unmark");
+        Task t = tasks.markUndone(idx);
+        storeSafeSave(store, tasks, ui, "unmark");
+        ui.showUnmarked(t);
+    }
+
+    private static void handleDelete(String line, ConsoleUI ui, FileStore store, TaskCollection tasks)
+            throws MeowException {
+        int idx = CommandParser.parseIndex(line, "delete");
+        Task removed = tasks.delete(idx);
+        storeSafeSave(store, tasks, ui, "delete");
+        ui.showDeleted(removed, tasks.size());
+    }
+
+    private static void handleAddTodo(String line, ConsoleUI ui, FileStore store, TaskCollection tasks)
+            throws MeowException {
+        String desc = CommandParser.parseTodoDesc(line);
+        Task t = new ToDo(desc);
+        tasks.add(t);
+        storeSafeSave(store, tasks, ui, "add-todo");
+        ui.showAdded(t, tasks.size());
+    }
+
+    private static void handleAddDeadline(String line, ConsoleUI ui, FileStore store, TaskCollection tasks)
+            throws MeowException {
+        String[] parts = CommandParser.parseDeadlineParts(line);
+        String desc = parts[0];
+        String dateRaw = parts[1];
+        LocalDateTimeHolder holder = DateTimeUtil.obtainValuesDate(dateRaw);
+        Task t = new Deadline(desc, holder);
+        tasks.add(t);
+        storeSafeSave(store, tasks, ui, "add-deadline");
+        ui.showAdded(t, tasks.size());
+    }
+
+    private static void handleAddEvent(String line, ConsoleUI ui, FileStore store, TaskCollection tasks)
+            throws MeowException {
+        String[] parts = CommandParser.parseEventParts(line);
+        String desc = parts[0];
+        String fromRaw = parts[1];
+        String toRaw = parts[2];
+        LocalDateTimeHolder fromH = DateTimeUtil.obtainValuesDate(fromRaw);
+        LocalDateTimeHolder toH = DateTimeUtil.obtainValuesDate(toRaw);
+        Task t = new Event(desc, fromH, toH);
+        tasks.add(t);
+        storeSafeSave(store, tasks, ui, "add-event");
+        ui.showAdded(t, tasks.size());
+    }
+
+    private static void handleFind(String line, ConsoleUI ui, TaskCollection tasks) throws MeowException {
+        String keyword = CommandParser.parseFindQuery(line);
+        List<Task> matches = tasks.find(keyword);
+        ui.showFind(matches);
+    }
+
+
+
+
+
     /**
-     * Safely save tasks to the FileStore variable and report any errors via UI.
+     * Saves tasks to the backing FileStore and reports any save errors via the UI.
      *
-     * @param store  backing file store
-     * @param tasks  current tasks collection
-     * @param ui     UI to show save errors
-     * @param action string describing the action that triggered save
+     * @param store  backing file store.
+     * @param tasks  current tasks collection.
+     * @param ui     UI to show save errors.
+     * @param action string describing the action that triggered the save.
      */
     private static void storeSafeSave(FileStore store, TaskCollection tasks, ConsoleUI ui, String action) {
         try {
@@ -127,9 +205,9 @@ public class MeowTheCat {
  */
 class ConsoleUI {
     /**
-     * Show matching tasks for a find query.
+     * Displays matching tasks for a find query.
      *
-     * @param matches list of matching tasks
+     * @param matches list of matching tasks.
      */
     void showFind(List<Task> matches) {
         System.out.println("____________________________________________________________");
@@ -151,7 +229,7 @@ class ConsoleUI {
     }
 
     /**
-     * Print greeting message.
+     * Prints a greeting message.
      */
     void showGreeting() {
         System.out.println("____________________________________________________________");
@@ -555,16 +633,16 @@ class MeowException extends Exception {
 
 class LocalDateTimeHolder {
     final LocalDateTime dateTime;
-    final boolean timeIncluded;
+    final boolean hastTimeIncluder;
 
-    LocalDateTimeHolder(LocalDateTime dt, boolean timeIncluded) {
+    LocalDateTimeHolder(LocalDateTime dt, boolean hastTimeIncluder) {
         this.dateTime = dt;
-        this.timeIncluded = timeIncluded;
+        this.hastTimeIncluder = hastTimeIncluder;
     }
 
     // Return a copy of LocalDateTime object
     public LocalDateTimeHolder copy() {
-        return new LocalDateTimeHolder(this.dateTime, this.timeIncluded);
+        return new LocalDateTimeHolder(this.dateTime, this.hastTimeIncluder);
     }
 }
 
@@ -575,7 +653,6 @@ class DateTimeUtil {
         input = input.trim();
         int len = input.length();
         int idx = 0;
-
         StringBuilder sb = new StringBuilder();
         while (idx < len && input.charAt(idx) != '-') {
             sb.append(input.charAt(idx));
@@ -597,7 +674,6 @@ class DateTimeUtil {
         }
         String monthStr = sb.toString();
         idx++;
-
         sb.setLength(0);
         while (idx < len) {
             sb.append(input.charAt(idx));
@@ -609,9 +685,6 @@ class DateTimeUtil {
             int year = Integer.parseInt(yearStr);
             int month = Integer.parseInt(monthStr);
             int day = Integer.parseInt(dayStr);
-
-            // LocalDate.of can throw DateTimeException for out-of-range fields;
-            // catch it and rethrow an IllegalArgumentException to keep the API consistent.
             LocalDate ld;
             try {
                 ld = LocalDate.of(year, month, day);
@@ -658,66 +731,88 @@ abstract class Task {
 
     public abstract Task copy();
 
+
+
+
     public static Task deserialize(String line) throws MeowException {
+        String[] parts = splitAndTrim(line);
+        requireLength(parts, 3, "Not enough fields in saved line");
+
+        String type = parts[0];
+        boolean done = parseDoneFlag(parts[1]);
+        String desc = parts[2];
+
+        switch (type.toUpperCase(Locale.ROOT)) {
+        case "T":
+            return buildTodo(desc, done);
+        case "D":
+            requireLength(parts, 4, "Deadline missing time field");
+            return buildDeadline(desc, parts[3], done);
+        case "E":
+            requireLength(parts, 5, "Event missing from/to fields");
+            return buildEvent(desc, parts[3], parts[4], done);
+        default:
+            throw new MeowException("Unknown task type: " + type);
+        }
+    }
+
+    private static String[] splitAndTrim(String line) {
         String[] parts = line.split("\\|", -1);
         for (int i = 0; i < parts.length; i++) {
             parts[i] = parts[i].trim();
         }
-        if (parts.length < 3) {
-            throw new MeowException("Not enough fields in saved line");
-        }
+        return parts;
+    }
 
-        String type = parts[0];
-        String doneStr = parts[1];
-        String desc = parts[2];
-        boolean done;
-        if (!("0".equals(doneStr) || "1".equals(doneStr))) {
-            throw new MeowException("Invalid done flag (should be 0 or 1)");
-        }
-        done = "1".equals(doneStr);
-
-        if ("T".equalsIgnoreCase(type)) {
-            ToDo t = new ToDo(desc);
-            if (done) {
-                t.markDone();
-            }
-            return t;
-        } else if ("D".equalsIgnoreCase(type)) {
-            if (parts.length < 4) {
-                throw new MeowException("Deadline missing time field");
-            }
-            String serializedDate = parts[3];
-            try {
-                LocalDateTimeHolder holder = DateTimeUtil.obtainValuesDate(serializedDate);
-                Deadline d = new Deadline(desc, holder);
-                if (done) {
-                    d.markDone();
-                }
-                return d;
-            } catch (Exception e) {
-                throw new MeowException("Invalid date format for deadline: " + serializedDate);
-            }
-        } else if ("E".equalsIgnoreCase(type)) {
-            if (parts.length < 5) {
-                throw new MeowException("Event missing from/to fields");
-            }
-            String fromSer = parts[3];
-            String toSer = parts[4];
-            try {
-                LocalDateTimeHolder fromH = DateTimeUtil.obtainValuesDate(fromSer);
-                LocalDateTimeHolder toH = DateTimeUtil.obtainValuesDate(toSer);
-                Event ev = new Event(desc, fromH, toH);
-                if (done) {
-                    ev.markDone();
-                }
-                return ev;
-            } catch (Exception e) {
-                throw new MeowException("Invalid date/time format for event: " + e.getMessage());
-            }
-        } else {
-            throw new MeowException("Unknown task type: " + type);
+    private static void requireLength(String[] parts, int min, String errMsg) throws MeowException {
+        if (parts.length < min) {
+            throw new MeowException(errMsg);
         }
     }
+
+    private static boolean parseDoneFlag(String s) throws MeowException {
+        if (!("0".equals(s) || "1".equals(s))) {
+            throw new MeowException("Invalid done flag (should be 0 or 1)");
+        }
+        return "1".equals(s);
+    }
+
+    private static Task buildTodo(String desc, boolean done) {
+        ToDo t = new ToDo(desc);
+        if (done) {
+            t.markDone();
+        }
+        return t;
+    }
+
+    private static Task buildDeadline(String desc, String serializedDate, boolean done) throws MeowException {
+        try {
+            LocalDateTimeHolder holder = DateTimeUtil.obtainValuesDate(serializedDate);
+            Deadline d = new Deadline(desc, holder);
+            if (done) {
+                d.markDone();
+            }
+            return d;
+        } catch (Exception e) {
+            throw new MeowException("Invalid date format for deadline: " + serializedDate);
+        }
+    }
+
+    private static Task buildEvent(String desc, String fromSer, String toSer, boolean done) throws MeowException {
+        try {
+            LocalDateTimeHolder fromH = DateTimeUtil.obtainValuesDate(fromSer);
+            LocalDateTimeHolder toH = DateTimeUtil.obtainValuesDate(toSer);
+            Event ev = new Event(desc, fromH, toH);
+            if (done) {
+                ev.markDone();
+            }
+            return ev;
+        } catch (Exception e) {
+            throw new MeowException("Invalid date/time format for event: " + e.getMessage());
+        }
+    }
+
+
 
     protected String doneFlag() {
         return isDone ? "[X]" : "[ ]";

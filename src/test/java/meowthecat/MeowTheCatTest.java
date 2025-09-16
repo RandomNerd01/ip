@@ -61,8 +61,7 @@ class MeowTheCatTest {
         PrintStream ps = new PrintStream(baos, true, StandardCharsets.UTF_8.name());
         System.setOut(ps);
 
-        // Run the application
-        //MeowTheCat.main(new String[0]);
+
 
         // Read output
         ps.flush();
