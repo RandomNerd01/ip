@@ -315,7 +315,7 @@ class ConsoleUI {
     /**
      * Show deletion confirmation.
      *
-     * @param t         the deleted task
+     * @param t the deleted task
      * @param remaining number of tasks remaining
      */
     void showDeleted(Task t, int remaining) {

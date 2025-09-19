@@ -23,6 +23,7 @@ public class Main extends Application {
 
             Scene scene = new Scene(ap);
             stage.setScene(scene);
+            stage.setTitle("MeowTheCat");
 
             MainWindow controller = fxmlLoader.getController();
             assert controller != null : "MainWindow controller must be available after loading FXML";
